@@ -14,8 +14,11 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
+#include <Update.h>
+#include <esp_ota_ops.h>
 #include "secrets.h"
 #include "sauna_logic.h"
+#include "ota_logic.h"
 
 // =============================================================================
 // PIN MAPPING
@@ -824,6 +827,203 @@ static void mqttConnect()
 }
 
 // ---------------------------------------------------------------------------
+// OTA update handlers
+// ---------------------------------------------------------------------------
+
+#ifndef OTA_MAX_BOOT_FAILURES
+#define OTA_MAX_BOOT_FAILURES 3
+#endif
+
+// Called early in setup() — increments the consecutive-failure counter.
+// If the threshold is reached, attempts to roll back to the previous firmware.
+static void otaCheckBootHealth()
+{
+  prefs.begin("sauna", false);
+  int failures = prefs.getInt("boot_fail", 0) + 1;
+  prefs.putInt("boot_fail", failures);
+  prefs.end();
+  Serial.printf("OTA: boot attempt %d (rollback threshold %d)\n",
+                failures, OTA_MAX_BOOT_FAILURES);
+  if (shouldRollback(failures, OTA_MAX_BOOT_FAILURES)) {
+    Serial.println("OTA: consecutive boot failures exceeded threshold — rolling back");
+    // Reset counter first so we don't loop if rollback is unavailable
+    prefs.begin("sauna", false);
+    prefs.putInt("boot_fail", 0);
+    prefs.end();
+    esp_ota_mark_app_invalid_rollback_and_reboot();
+    // Reaches here only when no previous OTA slot is available
+    Serial.println("OTA: rollback unavailable (no previous firmware slot)");
+  }
+}
+
+// Call once WiFi and sensors are confirmed healthy to reset the failure counter.
+static void otaMarkBootSuccessful()
+{
+  prefs.begin("sauna", false);
+  prefs.putInt("boot_fail", 0);
+  prefs.end();
+  esp_ota_mark_app_valid_cancel_rollback();
+}
+
+// GET /ota/status — return current firmware version and partition info
+void handleOtaStatus()
+{
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  char buf[192];
+  snprintf(buf, sizeof(buf),
+           "{\"version\":\"%s\",\"partition\":\"%s\",\"boot_failures\":%d}",
+           FIRMWARE_VERSION,
+           running ? running->label : "unknown",
+           []() {
+             prefs.begin("sauna", true);
+             int f = prefs.getInt("boot_fail", 0);
+             prefs.end();
+             return f;
+           }());
+  server.send(200, "application/json", buf);
+}
+
+// POST /ota/update?manifest=<url>
+// Downloads the JSON manifest, checks version, then streams the firmware binary.
+// The partial-download state is persisted to NVS so a power failure is detectable.
+void handleOtaUpdate()
+{
+  if (!server.hasArg("manifest")) {
+    server.send(400, "application/json", "{\"ok\":false,\"error\":\"missing manifest param\"}");
+    return;
+  }
+  String manifestUrl = server.arg("manifest");
+
+  // Fetch manifest
+  HTTPClient http;
+  http.begin(manifestUrl);
+  int code = http.GET();
+  if (code != 200) {
+    http.end();
+    char err[80];
+    snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"manifest fetch failed: HTTP %d\"}", code);
+    server.send(502, "application/json", err);
+    return;
+  }
+  String body = http.getString();
+  http.end();
+
+  OtaManifest manifest = parseOtaManifest(body.c_str());
+  if (!manifest.valid) {
+    server.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"invalid manifest: missing version or url\"}");
+    return;
+  }
+
+  // Version check — refuse downgrades and same-version re-flashes
+  FirmwareVersion current  = parseVersion(FIRMWARE_VERSION);
+  FirmwareVersion incoming = parseVersion(manifest.version);
+  if (!isUpdateAvailable(current, incoming)) {
+    char msg[96];
+    snprintf(msg, sizeof(msg),
+             "{\"ok\":true,\"updated\":false,\"reason\":\"current %s >= manifest %s\"}",
+             FIRMWARE_VERSION, manifest.version);
+    server.send(200, "application/json", msg);
+    return;
+  }
+
+  // Fetch firmware binary
+  http.begin(manifest.url);
+  int fwCode = http.GET();
+  if (fwCode != 200) {
+    http.end();
+    char err[80];
+    snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"firmware fetch failed: HTTP %d\"}", fwCode);
+    server.send(502, "application/json", err);
+    return;
+  }
+
+  int fwSize = http.getSize();
+  if (fwSize <= 0) {
+    http.end();
+    server.send(502, "application/json",
+                "{\"ok\":false,\"error\":\"firmware size unknown\"}");
+    return;
+  }
+
+  if (!Update.begin(fwSize)) {
+    http.end();
+    char err[96];
+    snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"Update.begin failed: %s\"}",
+             Update.errorString());
+    server.send(500, "application/json", err);
+    return;
+  }
+
+  if (manifest.md5[0]) Update.setMD5(manifest.md5);
+
+  // Mark download in progress in NVS so a power failure is detectable at next boot
+  prefs.begin("sauna", false);
+  prefs.putBool("ota_ip", true);
+  prefs.putUInt("ota_exp", (unsigned int)fwSize);
+  prefs.putUInt("ota_wrt", 0);
+  prefs.end();
+
+  Serial.printf("OTA: writing %d bytes from %s\n", fwSize, manifest.url);
+  size_t written = Update.writeStream(*http.getStreamPtr());
+  http.end();
+
+  // Update NVS with bytes written (best-effort — power may fail here)
+  prefs.begin("sauna", false);
+  prefs.putUInt("ota_wrt", (unsigned int)written);
+  prefs.end();
+
+  if (!Update.end(true) || !Update.isFinished()) {
+    char err[96];
+    snprintf(err, sizeof(err), "{\"ok\":false,\"error\":\"Update.end failed: %s\"}",
+             Update.errorString());
+    server.send(500, "application/json", err);
+    return;
+  }
+
+  // Clear in-progress flag — download completed successfully
+  prefs.begin("sauna", false);
+  prefs.putBool("ota_ip", false);
+  prefs.end();
+
+  Serial.printf("OTA: success (%zu bytes), rebooting to %s\n", written, manifest.version);
+  server.send(200, "application/json",
+              "{\"ok\":true,\"updated\":true,\"rebooting\":true}");
+  delay(500);
+  esp_restart();
+}
+
+// Detect and log a previously interrupted download (power failure mid-flash).
+// Call early in setup() before WiFi — any incomplete OTA slot is harmless
+// (the bootloader ignores unvalidated slots), but we log it for visibility.
+static void otaCheckPartialDownload()
+{
+  prefs.begin("sauna", true);
+  bool inProgress = prefs.getBool("ota_ip", false);
+  unsigned int expected = prefs.getUInt("ota_exp", 0);
+  unsigned int written  = prefs.getUInt("ota_wrt", 0);
+  prefs.end();
+
+  if (inProgress) {
+    OtaDownloadState s;
+    s.in_progress    = true;
+    s.bytes_expected = expected;
+    s.bytes_written  = written;
+
+    if (isOtaIncomplete(s)) {
+      Serial.printf("OTA: previous download incomplete (%u/%u bytes) — will retry on next /ota/update\n",
+                    written, expected);
+    } else {
+      Serial.println("OTA: previous update did not complete (reset during apply?) — recovery pending");
+    }
+    // Clear the flag; the slot is invalid so the bootloader already ignored it
+    prefs.begin("sauna", false);
+    prefs.putBool("ota_ip", false);
+    prefs.end();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Configuration portal handlers
 // ---------------------------------------------------------------------------
 
@@ -1021,6 +1221,11 @@ void setup()
 {
   Serial.begin(115200);
 
+  // OTA: check for incomplete previous download and consecutive boot failures
+  // Run before LittleFS/NVS config load so a bad firmware is caught early.
+  otaCheckPartialDownload();
+  otaCheckBootHealth();
+
   if (!LittleFS.begin(true))
     Serial.println("LittleFS mount failed");
 
@@ -1099,6 +1304,8 @@ void setup()
   Serial.println("WiFi connected.");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  // WiFi up — firmware is functional enough to cancel any pending rollback
+  otaMarkBootSuccessful();
 
   // NTP server pairs tried in order. Router-first is most reliable on a LAN
   // since it doesn't require outbound UDP 123 to the internet.
@@ -1170,6 +1377,8 @@ void setup()
   server.on("/config", HTTP_GET, handleConfigPage);
   server.on("/config/get", HTTP_GET, handleConfigGet);
   server.on("/config/save", HTTP_POST, handleConfigSave);
+  server.on("/ota/status", HTTP_GET, handleOtaStatus);
+  server.on("/ota/update", HTTP_POST, handleOtaUpdate);
   server.begin();
   Serial.println("HTTP server started on port 80");
 
