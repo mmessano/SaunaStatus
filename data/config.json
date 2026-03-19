@@ -1,0 +1,6 @@
+{
+  "ceiling_setpoint_f": 160,
+  "bench_setpoint_f": 120,
+  "ceiling_pid_enabled": false,
+  "bench_pid_enabled": false
+}

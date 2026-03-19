@@ -1,0 +1,71 @@
+Info: Total warnings: 0, errors: 9.
+Info: Processing symbol 'U6:'.
+Info: Processing symbol 'U5:'.
+Info: Processing symbol 'U4:'.
+Info: Processing symbol 'J1:'.
+Info: Processing symbol 'U3:'.
+Info: Processing symbol 'U2:'.
+Info: Processing symbol 'U1:'.
+Info: Processing symbol 'J3:'.
+Info: Processing symbol 'J2:'.
+Removed unused net unconnected-(U1-SENSOR_VP-Pad4).
+Removed unused net /U6_28BYJ_D.
+Removed unused net unconnected-(U1-SENSOR_VN-Pad5).
+Removed unused net unconnected-(U1-SCS{slash}CMD-Pad19).
+Removed unused net unconnected-(U1-SCK{slash}CLK-Pad20).
+Removed unused net unconnected-(U1-IO35-Pad7).
+Removed unused net unconnected-(U1-IO34-Pad6).
+Removed unused net unconnected-(U1-IO13-Pad16).
+Removed unused net /U6_28BYJ_B.
+Removed unused net unconnected-(U1-IO12-Pad14).
+Removed unused net unconnected-(U1-EN-Pad3).
+Removed unused net /RTDIN-.
+Removed unused net /U6_28BYJ_C.
+Removed unused net GND.
+Removed unused net unconnected-(U1-SHD{slash}SD2-Pad17).
+Removed unused net unconnected-(U1-SWP{slash}SD3-Pad18).
+Removed unused net unconnected-(U2-BIAS-Pad4).
+Removed unused net unconnected-(U2-FORCE2-Pad9).
+Removed unused net unconnected-(U2-ISENSOR-Pad7).
+Removed unused net unconnected-(U2-~{DRDY}-Pad1).
+Removed unused net unconnected-(U4-NC-Pad3).
+Removed unused net unconnected-(U6-I5-Pad5).
+Removed unused net unconnected-(U6-I6-Pad6).
+Removed unused net unconnected-(U6-I7-Pad7).
+Removed unused net unconnected-(U6-O5-Pad12).
+Removed unused net unconnected-(U6-O6-Pad11).
+Removed unused net unconnected-(U6-O7-Pad10).
+
+
+Removed unused net /SPI_SCK.
+Removed unused net +3V3.
+Removed unused net +5V.
+Removed unused net /DHT_BENCH.
+Removed unused net /FORCE+.
+Removed unused net /FORCE-.
+Removed unused net /INFLOW_I1.
+Removed unused net /INFLOW_I2.
+Removed unused net /INFLOW_I3.
+Removed unused net /INFLOW_I4.
+Removed unused net /OUTFLOW_I2.
+Removed unused net /U6_28BYJ_A.
+Removed unused net /SPI_MOSI.
+Removed unused net /SPI_CS.
+Removed unused net /RTDIN+.
+Removed unused net /REFIN-.
+Removed unused net /REFIN+.
+Removed unused net /OUTFLOW_I4.
+Removed unused net /OUTFLOW_I3.
+Removed unused net /OUTFLOW_I1.
+Error: Cannot add U6 (no footprint assigned).
+Error: Cannot add U5 (no footprint assigned).
+Error: Cannot add U4 (no footprint assigned).
+Error: Cannot add U3 (no footprint assigned).
+Error: Cannot add U2 (no footprint assigned).
+Error: Cannot add U1 (no footprint assigned).
+Error: Cannot add J3 (no footprint assigned).
+Error: Cannot add J2 (no footprint assigned).
+Error: Cannot add J1 (no footprint assigned).
+
+
+Info: Total warnings: 0, errors: 9.

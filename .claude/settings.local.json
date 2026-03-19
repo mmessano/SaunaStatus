@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/.platformio/penv/bin/pio run --target uploadfs -d /home/mmessano/Documents/PlatformIO/Projects/SaunaStatus)",
+      "Bash(~/.platformio/penv/bin/pio run -d /home/mmessano/Documents/PlatformIO/Projects/SaunaStatus)",
+      "Bash(python3 -c \":*)",
+      "Read(//usr/share/kicad/template/RaspberryPi-HAT/**)",
+      "Read(//usr/share/kicad/template/TI-LaunchPad-BoosterPack-40pin/**)",
+      "Bash(find:*)",
+      "Bash(pio test:*)",
+      "Read(//home/mmessano/.platformio/penv/bin/**)",
+      "Bash(/home/mmessano/.platformio/penv/bin/platformio test:*)",
+      "Bash(~/.platformio/penv/bin/pio test:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/filter-test-output.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
