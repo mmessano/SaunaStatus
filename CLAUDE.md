@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ESP32-based sauna automation system. Monitors temperature/humidity via PT1000 (stove) and dual DHT21 (ceiling/bench) sensors, monitors power via INA219, and controls two stepper-driven damper vents using dual PID controllers. Integrates with InfluxDB, MQTT (Home Assistant MQTT Discovery), and provides a local WebSocket/HTTP interface.
 
+This is an ESP32 embedded project (sauna controller) using Arduino/PlatformIO. Key technologies: C++, ESP32, WebSocket, DHT sensors, KiCad for PCB design. Always consider memory constraints and real-time requirements when suggesting code changes.
+
+## Coding Conventions
+
+When modifying sensor-related code, ensure stale/disconnected sensor values are handled explicitly (set to NaN or sentinel value, not retained). Always test the disconnect/reconnect path.
+
+## Build & Testing
+
+After making firmware changes, remind the user to compile with `pio run` and check for warnings. IntelliSense errors in VSCode may be false positives — distinguish between IDE warnings and actual compiler errors.
+
 ## Build Commands
 
 ```bash
