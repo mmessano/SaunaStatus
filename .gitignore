@@ -27,19 +27,43 @@ docs/kicad/#auto_saved_files#
 # Crash-recovery schematic written while KiCad is open.
 docs/kicad/_autosave-*.kicad_sch
 
-# Editor lock file — present only while the file is open.
-docs/kicad/~*.kicad_sch.lck
-
 # Per-machine local project settings (window geometry, last-opened paths, etc.).
 # Shared project settings live in .kicad_pro; .kicad_prl is machine-local.
 docs/kicad/*.kicad_prl
 
+# Per-file schematic and PCB backups (written alongside the source file).
+*.kicad_sch-bak
+*.kicad_pcb-bak
+*.bak
+*.bck
+
+# Netlist and autorouter exports (regenerated from schematic/layout).
+*.net
+*.dsn
+*.ses
+
+# Tilde-prefixed lock/temp files KiCad creates.
+~*
+
 # =============================================================================
-# Python (generate_schematic.py bytecode cache)
+# Python
 # =============================================================================
+# Bytecode cache — covers .pyc, .pyo, .pyd, .pyz.
 __pycache__/
-*.pyc
-*.pyo
+*.py[codz]
+
+# Virtual environments.
+.env
+venv/
+.venv/
+env/
+
+# Test and type-checker caches.
+.pytest_cache/
+.mypy_cache/
+
+# Packaging artifacts.
+*.egg-info/
 
 # =============================================================================
 # VS Code
@@ -53,4 +77,3 @@ __pycache__/
 Thumbs.db
 *.swp
 *.swo
-*~

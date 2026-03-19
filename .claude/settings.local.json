@@ -14,7 +14,8 @@
       "Bash(pio run:*)",
       "Bash(~/.platformio/penv/bin/pio run:*)",
       "Skill(update-config)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(curl:*)"
     ]
   },
   "hooks": {
