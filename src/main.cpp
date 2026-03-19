@@ -117,9 +117,8 @@ CheapStepper inflow(dINFLOW1, dINFLOW2, dINFLOW3, dINFLOW4);
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 
-// Static IP configuration
-IPAddress local_IP(192, 168, 1, 200);
-IPAddress gateway(192, 168, 1, 1);
+// Static IP configuration (local_IP is computed at runtime from g_static_ip_str)
+IPAddress gateway(192, 168, 1, 100);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 
@@ -133,6 +132,14 @@ PubSubClient mqttClient(mqttWifi);
 #ifndef STALE_THRESHOLD_MS
 #define STALE_THRESHOLD_MS 10000UL
 #endif
+
+// Runtime-configurable intervals and identity (Tier 3: NVS overrides build-flag defaults)
+// These can be changed at runtime via the /config portal without a reboot.
+unsigned long g_sensor_read_interval_ms = 2000UL;
+unsigned long g_serial_log_interval_ms  = SERIAL_LOG_INTERVAL_MS;
+// Static IP and device name require a restart to take effect.
+char g_device_name[25]  = DEVICE;
+char g_static_ip_str[16] = "192.168.1.200";
 
 // Define data types
 float ceiling_temp = NAN, ceiling_hum = NAN;
@@ -212,6 +219,25 @@ static void loadLittleFSConfig()
     ceiling_pid_en = doc["ceiling_pid_enabled"].as<bool>();
   if (doc["bench_pid_enabled"].is<bool>())
     bench_pid_en = doc["bench_pid_enabled"].as<bool>();
+  if (doc["sensor_read_interval_ms"].is<unsigned long>()) {
+    unsigned long v = doc["sensor_read_interval_ms"].as<unsigned long>();
+    if (v >= 500 && v <= 10000) g_sensor_read_interval_ms = v;
+  }
+  if (doc["serial_log_interval_ms"].is<unsigned long>()) {
+    unsigned long v = doc["serial_log_interval_ms"].as<unsigned long>();
+    if (v >= 1000 && v <= 60000) g_serial_log_interval_ms = v;
+  }
+  if (doc["static_ip"].is<const char *>()) {
+    const char *s = doc["static_ip"].as<const char *>();
+    IPAddress ip;
+    if (s && ip.fromString(s))
+      strncpy(g_static_ip_str, s, sizeof(g_static_ip_str) - 1);
+  }
+  if (doc["device_name"].is<const char *>()) {
+    const char *s = doc["device_name"].as<const char *>();
+    if (s && strlen(s) > 0 && strlen(s) < sizeof(g_device_name))
+      strncpy(g_device_name, s, sizeof(g_device_name) - 1);
+  }
   Serial.printf("Config: csp=%.1f°F bsp=%.1f°F cen=%d ben=%d\n",
                 c2f(Ceilingpoint), c2f(Benchpoint),
                 ceiling_pid_en, bench_pid_en);
@@ -797,6 +823,199 @@ static void mqttConnect()
   }
 }
 
+// ---------------------------------------------------------------------------
+// Configuration portal handlers
+// ---------------------------------------------------------------------------
+
+// GET /config — serve the settings HTML page from LittleFS
+void handleConfigPage()
+{
+  File f = LittleFS.open("/config.html", "r");
+  if (!f)
+  {
+    server.send(500, "text/plain", "config.html not found — upload filesystem image");
+    return;
+  }
+  server.sendHeader("Cache-Control", "no-store");
+  server.streamFile(f, "text/html");
+  f.close();
+}
+
+// GET /config/get — return current config as JSON
+void handleConfigGet()
+{
+  char buf[320];
+  snprintf(buf, sizeof(buf),
+           "{\"ceiling_setpoint_f\":%.1f,\"bench_setpoint_f\":%.1f,"
+           "\"ceiling_pid_en\":%s,\"bench_pid_en\":%s,"
+           "\"sensor_read_interval_ms\":%lu,\"serial_log_interval_ms\":%lu,"
+           "\"static_ip\":\"%s\",\"device_name\":\"%s\"}",
+           c2f(Ceilingpoint), c2f(Benchpoint),
+           ceiling_pid_en ? "true" : "false",
+           bench_pid_en ? "true" : "false",
+           g_sensor_read_interval_ms, g_serial_log_interval_ms,
+           g_static_ip_str, g_device_name);
+  server.send(200, "application/json", buf);
+}
+
+// POST /config/save — validate all fields first, then apply and persist
+// Returns: {"ok":true,"restart_required":false} or {"ok":false,"error":"..."}
+void handleConfigSave()
+{
+  bool restart_required = false;
+
+  // Staged values — only applied after all validation passes
+  float     new_ceiling_sp = -1.0f;
+  float     new_bench_sp   = -1.0f;
+  int       new_ceiling_en = -1;     // -1 = not present
+  int       new_bench_en   = -1;
+  unsigned long new_sri    = 0;      // 0 = not present
+  unsigned long new_slg    = 0;
+  char      new_ip[16]     = "";
+  char      new_dn[25]     = "";
+  bool      has_ip         = false;
+  bool      has_dn         = false;
+
+  char errmsg[80] = "";
+
+  // --- Validate all inputs before touching any state ---
+
+  if (server.hasArg("ceiling_setpoint_f")) {
+    float v = server.arg("ceiling_setpoint_f").toFloat();
+    if (v < 32.0f || v > 300.0f) {
+      snprintf(errmsg, sizeof(errmsg), "ceiling_setpoint_f must be 32–300");
+      goto send_error;
+    }
+    new_ceiling_sp = v;
+  }
+
+  if (server.hasArg("bench_setpoint_f")) {
+    float v = server.arg("bench_setpoint_f").toFloat();
+    if (v < 32.0f || v > 300.0f) {
+      snprintf(errmsg, sizeof(errmsg), "bench_setpoint_f must be 32–300");
+      goto send_error;
+    }
+    new_bench_sp = v;
+  }
+
+  if (server.hasArg("ceiling_pid_en")) {
+    String v = server.arg("ceiling_pid_en");
+    if (v == "1" || v == "true" || v == "on")        new_ceiling_en = 1;
+    else if (v == "0" || v == "false" || v == "off") new_ceiling_en = 0;
+    else { snprintf(errmsg, sizeof(errmsg), "invalid ceiling_pid_en value"); goto send_error; }
+  }
+
+  if (server.hasArg("bench_pid_en")) {
+    String v = server.arg("bench_pid_en");
+    if (v == "1" || v == "true" || v == "on")        new_bench_en = 1;
+    else if (v == "0" || v == "false" || v == "off") new_bench_en = 0;
+    else { snprintf(errmsg, sizeof(errmsg), "invalid bench_pid_en value"); goto send_error; }
+  }
+
+  if (server.hasArg("sensor_read_interval_ms")) {
+    long v = server.arg("sensor_read_interval_ms").toInt();
+    if (v < 500 || v > 10000) {
+      snprintf(errmsg, sizeof(errmsg), "sensor_read_interval_ms must be 500–10000");
+      goto send_error;
+    }
+    new_sri = (unsigned long)v;
+  }
+
+  if (server.hasArg("serial_log_interval_ms")) {
+    long v = server.arg("serial_log_interval_ms").toInt();
+    if (v < 1000 || v > 60000) {
+      snprintf(errmsg, sizeof(errmsg), "serial_log_interval_ms must be 1000–60000");
+      goto send_error;
+    }
+    new_slg = (unsigned long)v;
+  }
+
+  if (server.hasArg("static_ip")) {
+    String s = server.arg("static_ip");
+    IPAddress ip;
+    if (s.length() == 0 || s.length() >= sizeof(new_ip) || !ip.fromString(s)) {
+      snprintf(errmsg, sizeof(errmsg), "invalid static_ip address");
+      goto send_error;
+    }
+    s.toCharArray(new_ip, sizeof(new_ip));
+    has_ip = true;
+  }
+
+  if (server.hasArg("device_name")) {
+    String s = server.arg("device_name");
+    if (s.length() == 0 || s.length() >= sizeof(new_dn)) {
+      snprintf(errmsg, sizeof(errmsg), "device_name must be 1–24 characters");
+      goto send_error;
+    }
+    for (size_t i = 0; i < s.length(); i++) {
+      char c = s[i];
+      if (!isalnum((unsigned char)c) && c != '_' && c != '-') {
+        snprintf(errmsg, sizeof(errmsg), "device_name: only letters, digits, _ and - allowed");
+        goto send_error;
+      }
+    }
+    s.toCharArray(new_dn, sizeof(new_dn));
+    has_dn = true;
+  }
+
+  // --- All validation passed — apply and persist ---
+  {
+    prefs.begin("sauna", false);
+
+    if (new_ceiling_sp >= 32.0f) {
+      Ceilingpoint = (new_ceiling_sp - 32.0f) * 5.0f / 9.0f;
+      prefs.putFloat("csp", Ceilingpoint);
+    }
+    if (new_bench_sp >= 32.0f) {
+      Benchpoint = (new_bench_sp - 32.0f) * 5.0f / 9.0f;
+      prefs.putFloat("bsp", Benchpoint);
+    }
+    if (new_ceiling_en >= 0) {
+      ceiling_pid_en = (new_ceiling_en == 1);
+      prefs.putBool("cen", ceiling_pid_en);
+    }
+    if (new_bench_en >= 0) {
+      bench_pid_en = (new_bench_en == 1);
+      prefs.putBool("ben", bench_pid_en);
+    }
+    if (new_sri > 0) {
+      g_sensor_read_interval_ms = new_sri;
+      prefs.putUInt("sri", (unsigned int)new_sri);
+    }
+    if (new_slg > 0) {
+      g_serial_log_interval_ms = new_slg;
+      prefs.putUInt("slg", (unsigned int)new_slg);
+    }
+    if (has_ip && strcmp(new_ip, g_static_ip_str) != 0) {
+      strncpy(g_static_ip_str, new_ip, sizeof(g_static_ip_str) - 1);
+      prefs.putString("sip", g_static_ip_str);
+      restart_required = true;
+    }
+    if (has_dn && strcmp(new_dn, g_device_name) != 0) {
+      strncpy(g_device_name, new_dn, sizeof(g_device_name) - 1);
+      prefs.putString("dn", g_device_name);
+      restart_required = true;
+    }
+
+    prefs.end();
+  }
+
+  {
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"ok\":true,\"restart_required\":%s}",
+             restart_required ? "true" : "false");
+    server.send(200, "application/json", resp);
+  }
+  return;
+
+send_error:
+  {
+    char resp[128];
+    snprintf(resp, sizeof(resp), "{\"ok\":false,\"error\":\"%s\"}", errmsg);
+    server.send(400, "application/json", resp);
+  }
+}
+
 // begin Setup
 void setup()
 {
@@ -822,6 +1041,19 @@ void setup()
     if (prefs.isKey("ben")) bench_pid_en     = prefs.getBool("ben",  bench_pid_en);
     if (prefs.isKey("omx")) outflow_max_steps = prefs.getInt("omx",  outflow_max_steps);
     if (prefs.isKey("imx")) inflow_max_steps  = prefs.getInt("imx",  inflow_max_steps);
+    if (prefs.isKey("sri")) g_sensor_read_interval_ms = prefs.getUInt("sri", (unsigned int)g_sensor_read_interval_ms);
+    if (prefs.isKey("slg")) g_serial_log_interval_ms  = prefs.getUInt("slg", (unsigned int)g_serial_log_interval_ms);
+    if (prefs.isKey("sip")) {
+      String s = prefs.getString("sip", "");
+      IPAddress ip;
+      if (s.length() > 0 && s.length() < sizeof(g_static_ip_str) && ip.fromString(s))
+        s.toCharArray(g_static_ip_str, sizeof(g_static_ip_str));
+    }
+    if (prefs.isKey("dn")) {
+      String s = prefs.getString("dn", "");
+      if (s.length() > 0 && s.length() < sizeof(g_device_name))
+        s.toCharArray(g_device_name, sizeof(g_device_name));
+    }
     prefs.end();
   }
   Serial.printf("Settings: csp=%.1f°F bsp=%.1f°F cen=%d ben=%d omx=%d imx=%d\n",
@@ -849,7 +1081,14 @@ void setup()
 
   Serial.print("Connecting to ");
   Serial.println(ssid);
-  WiFi.config(local_IP, gateway, subnet, primaryDNS);
+  {
+    IPAddress local_IP;
+    if (!local_IP.fromString(g_static_ip_str)) {
+      Serial.printf("Config: invalid static_ip \"%s\", using 192.168.1.200\n", g_static_ip_str);
+      local_IP.fromString("192.168.1.200");
+    }
+    WiFi.config(local_IP, gateway, subnet, primaryDNS);
+  }
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -861,7 +1100,24 @@ void setup()
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
+  // NTP server pairs tried in order. Router-first is most reliable on a LAN
+  // since it doesn't require outbound UDP 123 to the internet.
+  static const char *ntpA[] = { "192.168.1.100", "pool.ntp.org",    "pool.ntp.org" };
+  static const char *ntpB[] = { "pool.ntp.org", "time.nist.gov",   "time.cloudflare.com" };
+
+  // Attempt NTP sync; retry up to 3 times if still at epoch (year < 2020)
+  for (int ntpAttempt = 0; ntpAttempt < 3; ntpAttempt++) {
+    if (ntpAttempt > 0) {
+      Serial.printf("NTP sync failed (attempt %d), retrying in 5s...\n", ntpAttempt);
+      delay(5000);
+    }
+    Serial.printf("NTP: trying %s / %s\n", ntpA[ntpAttempt], ntpB[ntpAttempt]);
+    timeSync(TZ_INFO, ntpA[ntpAttempt], ntpB[ntpAttempt]);
+    time_t t = time(nullptr);
+    struct tm chk;
+    gmtime_r(&t, &chk);
+    if (chk.tm_year > 120) break; // tm_year is years since 1900; >120 means >2020
+  }
 
   time_t now = time(nullptr);
   struct tm utcTm, localTm;
@@ -869,6 +1125,8 @@ void setup()
   localtime_r(&now, &localTm);
   char timeBuf[40];
   strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &utcTm);
+  if (utcTm.tm_year <= 120)
+    Serial.println("WARNING: NTP sync failed after 3 attempts — timestamps will be wrong");
   Serial.print("UTC:   ");
   Serial.println(timeBuf);
   strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &localTm);
@@ -876,9 +1134,9 @@ void setup()
   Serial.println(timeBuf);
 
   // Add tags
-  status.addTag("device", DEVICE);
+  status.addTag("device", g_device_name);
   status.addTag("SSID", WiFi.SSID());
-  control.addTag("device", DEVICE);
+  control.addTag("device", g_device_name);
   control.addTag("SSID", WiFi.SSID());
 
   // Validate InfluxDB connection
@@ -909,6 +1167,9 @@ void setup()
   server.on("/setpoint", handleSetpoint);
   server.on("/pid", handlePidToggle);
   server.on("/motor", handleMotorCmd);
+  server.on("/config", HTTP_GET, handleConfigPage);
+  server.on("/config/get", HTTP_GET, handleConfigGet);
+  server.on("/config/save", HTTP_POST, handleConfigSave);
   server.begin();
   Serial.println("HTTP server started on port 80");
 
@@ -947,7 +1208,7 @@ void loop()
     inflow_dir = 0;
 
   static unsigned long lastRead = 0;
-  if (millis() - lastRead >= 2000)
+  if (millis() - lastRead >= g_sensor_read_interval_ms)
   {
     lastRead = millis();
 
@@ -1106,7 +1367,7 @@ void loop()
 
     // Serial log — throttled to SERIAL_LOG_INTERVAL_MS (default 10 s)
     static unsigned long lastLog = 0;
-    if (millis() - lastLog >= SERIAL_LOG_INTERVAL_MS)
+    if (millis() - lastLog >= g_serial_log_interval_ms)
     {
       lastLog = millis();
 
