@@ -117,14 +117,48 @@ CheapStepper inflow(dINFLOW1, dINFLOW2, dINFLOW3, dINFLOW4);
 #define SERIAL_LOG_INTERVAL_MS 10000
 #endif
 
+// Sensor read interval validation bounds (ms); applied in loadLittleFSConfig() and /config/save
+#ifndef SENSOR_READ_INTERVAL_MIN_MS
+#define SENSOR_READ_INTERVAL_MIN_MS 500UL
+#endif
+#ifndef SENSOR_READ_INTERVAL_MAX_MS
+#define SENSOR_READ_INTERVAL_MAX_MS 10000UL
+#endif
+
+// Serial log interval validation bounds (ms)
+#ifndef SERIAL_LOG_INTERVAL_MIN_MS
+#define SERIAL_LOG_INTERVAL_MIN_MS 1000UL
+#endif
+#ifndef SERIAL_LOG_INTERVAL_MAX_MS
+#define SERIAL_LOG_INTERVAL_MAX_MS 60000UL
+#endif
+
 // WiFi credentials from secrets.h
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 
+// WiFi static network config; override with build flags or move to secrets.h
+#ifndef WIFI_GATEWAY_IP
+#define WIFI_GATEWAY_IP 192, 168, 1, 100
+#endif
+#ifndef WIFI_DNS_IP
+#define WIFI_DNS_IP 8, 8, 8, 8
+#endif
+
+// Default static IP; override via LittleFS /config.json "static_ip" key or NVS "sip"
+#ifndef DEFAULT_STATIC_IP
+#define DEFAULT_STATIC_IP "192.168.1.200"
+#endif
+
+// Default sensor read interval (ms); override via /config.json "sensor_read_interval_ms" or NVS "sri"
+#ifndef DEFAULT_SENSOR_READ_INTERVAL_MS
+#define DEFAULT_SENSOR_READ_INTERVAL_MS 2000UL
+#endif
+
 // Static IP configuration (local_IP is computed at runtime from g_static_ip_str)
-IPAddress gateway(192, 168, 1, 100);
+IPAddress gateway(WIFI_GATEWAY_IP);
 IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8);
+IPAddress primaryDNS(WIFI_DNS_IP);
 
 WebServer server(80);
 WebSocketsServer webSocket(81);
@@ -137,13 +171,48 @@ PubSubClient mqttClient(mqttWifi);
 #define STALE_THRESHOLD_MS 10000UL
 #endif
 
+// InfluxDB write interval; override with -DINFLUX_WRITE_INTERVAL_MS=xxx
+#ifndef INFLUX_WRITE_INTERVAL_MS
+#define INFLUX_WRITE_INTERVAL_MS 60000UL
+#endif
+
+// MQTT reconnect retry interval; override with -DMQTT_RECONNECT_INTERVAL_MS=xxx
+#ifndef MQTT_RECONNECT_INTERVAL_MS
+#define MQTT_RECONNECT_INTERVAL_MS 5000UL
+#endif
+
+// Motor speed in RPM; override with -DMOTOR_RPM=xxx
+#ifndef MOTOR_RPM
+#define MOTOR_RPM 12
+#endif
+
+// Minimum PID output delta (steps) to suppress jitter; override with -DPID_MIN_STEP_DELTA=xxx
+#ifndef PID_MIN_STEP_DELTA
+#define PID_MIN_STEP_DELTA 5
+#endif
+
+// WebSocket broadcast JSON buffer size; override with -DWS_JSON_BUF_SIZE=xxx
+#ifndef WS_JSON_BUF_SIZE
+#define WS_JSON_BUF_SIZE 320
+#endif
+
+// MQTT publish/receive buffer size; override with -DMQTT_BUF_SIZE=xxx
+#ifndef MQTT_BUF_SIZE
+#define MQTT_BUF_SIZE 512
+#endif
+
+// Local NTP server (router); override with -DNTP_SERVER_LOCAL="x.x.x.x"
+#ifndef NTP_SERVER_LOCAL
+#define NTP_SERVER_LOCAL "192.168.1.100"
+#endif
+
 // Runtime-configurable intervals and identity (Tier 3: NVS overrides build-flag defaults)
 // These can be changed at runtime via the /config portal without a reboot.
-unsigned long g_sensor_read_interval_ms = 2000UL;
+unsigned long g_sensor_read_interval_ms = DEFAULT_SENSOR_READ_INTERVAL_MS;
 unsigned long g_serial_log_interval_ms  = SERIAL_LOG_INTERVAL_MS;
 // Static IP and device name require a restart to take effect.
 char g_device_name[25]  = DEVICE;
-char g_static_ip_str[16] = "192.168.1.200";
+char g_static_ip_str[16] = DEFAULT_STATIC_IP;
 
 // Define data types
 float ceiling_temp = NAN, ceiling_hum = NAN;
@@ -177,6 +246,20 @@ bool overheat_alarm = false;
 #ifndef DEFAULT_BENCH_SP_F
 #define DEFAULT_BENCH_SP_F 120.0f
 #endif
+
+// Setpoint validation bounds (°F) — used in HTTP handlers, MQTT callbacks, and LittleFS config loading
+#ifndef SETPOINT_MIN_F
+#define SETPOINT_MIN_F 32.0f
+#endif
+#ifndef SETPOINT_MAX_F
+#define SETPOINT_MAX_F 300.0f
+#endif
+
+// PID conservative/aggressive mode threshold: switch to conservative when error < this value (°C)
+#ifndef PID_CONSERVATIVE_THRESHOLD_C
+#define PID_CONSERVATIVE_THRESHOLD_C 10.0f
+#endif
+
 float Ceilingpoint = (DEFAULT_CEILING_SP_F - 32.0f) * 5.0f / 9.0f;
 float ceiling_output = 0;
 float c_aggKp = 4, c_aggKi = 0.2, c_aggKd = 1;
@@ -210,13 +293,13 @@ static void loadLittleFSConfig()
   if (doc["ceiling_setpoint_f"].is<float>())
   {
     float v = doc["ceiling_setpoint_f"].as<float>();
-    if (v >= 32.0f && v <= 300.0f)
+    if (v >= SETPOINT_MIN_F && v <= SETPOINT_MAX_F)
       Ceilingpoint = (v - 32.0f) * 5.0f / 9.0f;
   }
   if (doc["bench_setpoint_f"].is<float>())
   {
     float v = doc["bench_setpoint_f"].as<float>();
-    if (v >= 32.0f && v <= 300.0f)
+    if (v >= SETPOINT_MIN_F && v <= SETPOINT_MAX_F)
       Benchpoint = (v - 32.0f) * 5.0f / 9.0f;
   }
   if (doc["ceiling_pid_enabled"].is<bool>())
@@ -225,11 +308,11 @@ static void loadLittleFSConfig()
     bench_pid_en = doc["bench_pid_enabled"].as<bool>();
   if (doc["sensor_read_interval_ms"].is<unsigned long>()) {
     unsigned long v = doc["sensor_read_interval_ms"].as<unsigned long>();
-    if (v >= 500 && v <= 10000) g_sensor_read_interval_ms = v;
+    if (v >= SENSOR_READ_INTERVAL_MIN_MS && v <= SENSOR_READ_INTERVAL_MAX_MS) g_sensor_read_interval_ms = v;
   }
   if (doc["serial_log_interval_ms"].is<unsigned long>()) {
     unsigned long v = doc["serial_log_interval_ms"].as<unsigned long>();
-    if (v >= 1000 && v <= 60000) g_serial_log_interval_ms = v;
+    if (v >= SERIAL_LOG_INTERVAL_MIN_MS && v <= SERIAL_LOG_INTERVAL_MAX_MS) g_serial_log_interval_ms = v;
   }
   if (doc["static_ip"].is<const char *>()) {
     const char *s = doc["static_ip"].as<const char *>();
@@ -563,13 +646,13 @@ void handleSetpoint()
   if (server.hasArg("ceiling"))
   {
     float f = server.arg("ceiling").toFloat();
-    if (f >= 32.0f && f <= 300.0f)
+    if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
       Ceilingpoint = (f - 32.0f) * 5.0f / 9.0f;
   }
   if (server.hasArg("bench"))
   {
     float f = server.arg("bench").toFloat();
-    if (f >= 32.0f && f <= 300.0f)
+    if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
       Benchpoint = (f - 32.0f) * 5.0f / 9.0f;
   }
   savePrefs();
@@ -641,7 +724,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
   if (type == WStype_CONNECTED)
   {
     // Push current readings immediately to the newly connected client
-    char json[320];
+    char json[WS_JSON_BUF_SIZE];
     buildJson(json, sizeof(json));
     webSocket.sendTXT(num, json);
   }
@@ -675,7 +758,7 @@ static void mqttCallback(char *topic, byte *payload, unsigned int len)
   else if (strcmp(topic, "sauna/ceiling_setpoint/set") == 0)
   {
     float f = atof(msg);
-    if (f >= 32.0f && f <= 300.0f)
+    if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
     {
       Ceilingpoint = (f - 32.0f) * 5.0f / 9.0f;
       savePrefs();
@@ -684,7 +767,7 @@ static void mqttCallback(char *topic, byte *payload, unsigned int len)
   else if (strcmp(topic, "sauna/bench_setpoint/set") == 0)
   {
     float f = atof(msg);
-    if (f >= 32.0f && f <= 300.0f)
+    if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
     {
       Benchpoint = (f - 32.0f) * 5.0f / 9.0f;
       savePrefs();
@@ -1083,7 +1166,7 @@ void handleConfigSave()
 
   if (server.hasArg("ceiling_setpoint_f")) {
     float v = server.arg("ceiling_setpoint_f").toFloat();
-    if (v < 32.0f || v > 300.0f) {
+    if (v < SETPOINT_MIN_F || v > SETPOINT_MAX_F) {
       snprintf(errmsg, sizeof(errmsg), "ceiling_setpoint_f must be 32–300");
       goto send_error;
     }
@@ -1092,7 +1175,7 @@ void handleConfigSave()
 
   if (server.hasArg("bench_setpoint_f")) {
     float v = server.arg("bench_setpoint_f").toFloat();
-    if (v < 32.0f || v > 300.0f) {
+    if (v < SETPOINT_MIN_F || v > SETPOINT_MAX_F) {
       snprintf(errmsg, sizeof(errmsg), "bench_setpoint_f must be 32–300");
       goto send_error;
     }
@@ -1115,7 +1198,7 @@ void handleConfigSave()
 
   if (server.hasArg("sensor_read_interval_ms")) {
     long v = server.arg("sensor_read_interval_ms").toInt();
-    if (v < 500 || v > 10000) {
+    if (v < (long)SENSOR_READ_INTERVAL_MIN_MS || v > (long)SENSOR_READ_INTERVAL_MAX_MS) {
       snprintf(errmsg, sizeof(errmsg), "sensor_read_interval_ms must be 500–10000");
       goto send_error;
     }
@@ -1124,7 +1207,7 @@ void handleConfigSave()
 
   if (server.hasArg("serial_log_interval_ms")) {
     long v = server.arg("serial_log_interval_ms").toInt();
-    if (v < 1000 || v > 60000) {
+    if (v < (long)SERIAL_LOG_INTERVAL_MIN_MS || v > (long)SERIAL_LOG_INTERVAL_MAX_MS) {
       snprintf(errmsg, sizeof(errmsg), "serial_log_interval_ms must be 1000–60000");
       goto send_error;
     }
@@ -1310,7 +1393,7 @@ void setup()
 
   // NTP server pairs tried in order. Router-first is most reliable on a LAN
   // since it doesn't require outbound UDP 123 to the internet.
-  static const char *ntpA[] = { "192.168.1.100", "pool.ntp.org",    "pool.ntp.org" };
+  static const char *ntpA[] = { NTP_SERVER_LOCAL, "pool.ntp.org",    "pool.ntp.org" };
   static const char *ntpB[] = { "pool.ntp.org", "time.nist.gov",   "time.cloudflare.com" };
 
   // Attempt NTP sync; retry up to 3 times if still at epoch (year < 2020)
@@ -1359,8 +1442,8 @@ void setup()
     Serial.println(client.getLastErrorMessage());
   }
 
-  outflow.setRpm(12);
-  inflow.setRpm(12);
+  outflow.setRpm(MOTOR_RPM);
+  inflow.setRpm(MOTOR_RPM);
 
   CeilingPID.SetMode(QuickPID::Control::automatic);
   CeilingPID.SetOutputLimits(0, 255);
@@ -1389,7 +1472,7 @@ void setup()
 
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
-  mqttClient.setBufferSize(512);
+  mqttClient.setBufferSize(MQTT_BUF_SIZE);
   mqttConnect();
 }
 
@@ -1401,7 +1484,7 @@ void loop()
   if (!mqttClient.connected())
   {
     static unsigned long lastMqttRetry = 0;
-    if (millis() - lastMqttRetry > 5000)
+    if (millis() - lastMqttRetry > MQTT_RECONNECT_INTERVAL_MS)
     {
       lastMqttRetry = millis();
       mqttConnect();
@@ -1478,7 +1561,7 @@ void loop()
     if (!alarm && ceiling_pid_en && !isnan(ceiling_temp) && !isSensorStale(ceiling_last_ok_ms, millis(), STALE_THRESHOLD_MS))
     {
       float c_gap = fabsf(Ceilingpoint - ceiling_temp);
-      c_cons = c_gap < 10.0f;
+      c_cons = c_gap < PID_CONSERVATIVE_THRESHOLD_C;
       c_cons_mode = c_cons;
       CeilingPID.SetTunings(c_cons ? c_consKp : c_aggKp,
                             c_cons ? c_consKi : c_aggKi,
@@ -1486,7 +1569,7 @@ void loop()
       CeilingPID.Compute();
       int c_new = (int)(ceiling_output / 255.0f * outflow_max_steps);
       int c_delta = c_new - outflow_target;
-      if (abs(c_delta) >= 5)
+      if (abs(c_delta) >= PID_MIN_STEP_DELTA)
       {
         outflow_target = c_new;
         if (c_delta > 0)
@@ -1527,7 +1610,7 @@ void loop()
     if (!alarm && bench_pid_en && !isnan(bench_temp) && !isSensorStale(bench_last_ok_ms, millis(), STALE_THRESHOLD_MS))
     {
       float b_gap = fabsf(Benchpoint - bench_temp);
-      b_cons = b_gap < 10.0f;
+      b_cons = b_gap < PID_CONSERVATIVE_THRESHOLD_C;
       b_cons_mode = b_cons;
       BenchPID.SetTunings(b_cons ? b_consKp : b_aggKp,
                           b_cons ? b_consKi : b_aggKi,
@@ -1535,7 +1618,7 @@ void loop()
       BenchPID.Compute();
       int b_new = (int)(bench_output / 255.0f * inflow_max_steps);
       int b_delta = b_new - inflow_target;
-      if (abs(b_delta) >= 5)
+      if (abs(b_delta) >= PID_MIN_STEP_DELTA)
       {
         inflow_target = b_new;
         if (b_delta > 0)
@@ -1647,7 +1730,7 @@ void loop()
     }
 
     // Broadcast updated readings to all connected WebSocket clients
-    char json[320];
+    char json[WS_JSON_BUF_SIZE];
     buildJson(json, sizeof(json));
     webSocket.broadcastTXT(json);
 
@@ -1657,7 +1740,7 @@ void loop()
   }
 
   static unsigned long lastInflux = 0;
-  if (millis() - lastInflux >= 60000)
+  if (millis() - lastInflux >= INFLUX_WRITE_INTERVAL_MS)
   {
     lastInflux = millis();
 

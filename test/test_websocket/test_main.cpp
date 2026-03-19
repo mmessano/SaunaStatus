@@ -272,6 +272,149 @@ void test_staleness_threshold_zero_never_stale(void) {
     TEST_ASSERT_FALSE(isSensorStale(1000UL, 999999UL, 0UL));
 }
 
+// --- New edge case tests ---
+
+// After reconnection: sensor was stale (last_ok_ms=0), now has a fresh timestamp.
+// Expect: cst:0, clt has a valid value (not null).
+void test_reconnect_after_stale_restores_value(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = 75.0f;
+    sv.ceiling_hum        = 55.0f;
+    sv.bench_temp         = 65.0f;
+    sv.bench_hum          = 40.0f;
+    sv.stove_temp         = 200.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 9900;   // just reconnected
+    sv.bench_last_ok_ms   = 9900;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    char buf[512];
+    buildJsonFull(sv, ms, ps, 10000UL, buf, sizeof(buf)); // diff=100 < threshold
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"cst\":0"), "ceiling should not be stale after reconnect");
+    TEST_ASSERT_NULL_MESSAGE(strstr(buf, "\"clt\":null"), "ceiling temp should appear (not null) after reconnect");
+}
+
+// Stale sensor with NaN value stored: both code paths lead to null.
+// The stale branch forces NaN regardless; this test confirms no residual valid float leaks through.
+void test_stale_with_nan_value_still_null(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = std::numeric_limits<float>::quiet_NaN();  // NaN AND stale
+    sv.ceiling_hum        = std::numeric_limits<float>::quiet_NaN();
+    sv.bench_temp         = 65.0f;
+    sv.bench_hum          = 40.0f;
+    sv.stove_temp         = 200.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 0;      // never read -> stale
+    sv.bench_last_ok_ms   = 5000;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    char buf[512];
+    buildJsonFull(sv, ms, ps, 6000UL, buf, sizeof(buf));
+
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"clt\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"clh\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"cst\":1"));
+    // bench is valid and not stale
+    TEST_ASSERT_NULL(strstr(buf, "\"d5t\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"bst\":0"));
+}
+
+// Simultaneous failure: both sensors stale — all 4 DHT fields must be null.
+void test_simultaneous_both_sensors_stale_all_fields_null(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = 71.0f;  // stored float, but stale -> must be suppressed
+    sv.ceiling_hum        = 45.0f;
+    sv.bench_temp         = 65.0f;
+    sv.bench_hum          = 40.0f;
+    sv.stove_temp         = 200.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 0;      // both never read -> both stale
+    sv.bench_last_ok_ms   = 0;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    char buf[512];
+    buildJsonFull(sv, ms, ps, 1UL, buf, sizeof(buf));
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"clt\":null"), "ceiling temp must be null when stale");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"clh\":null"), "ceiling hum must be null when stale");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"d5t\":null"), "bench temp must be null when stale");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"d5h\":null"), "bench hum must be null when stale");
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"cst\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"bst\":1"));
+}
+
+// Partial DHT failure: ceiling temp is NaN, humidity is valid, sensor not stale.
+// Real DHT21 behaviour: individual fields can fail independently within one read cycle.
+// Expect: clt:null (NaN temp), but clh has a numeric value (hum succeeded).
+void test_partial_dht_failure_temp_nan_hum_valid(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = std::numeric_limits<float>::quiet_NaN();  // temp failed
+    sv.ceiling_hum        = 52.0f;                                    // hum OK
+    sv.bench_temp         = 65.0f;
+    sv.bench_hum          = 40.0f;
+    sv.stove_temp         = 200.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 5000;   // sensor alive (humidity succeeded -> || logic updated timestamp)
+    sv.bench_last_ok_ms   = 5000;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    char buf[512];
+    buildJsonFull(sv, ms, ps, 6000UL, buf, sizeof(buf)); // diff=1000 < threshold, not stale
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"clt\":null"),  "NaN temp should be null");
+    TEST_ASSERT_NULL_MESSAGE(strstr(buf, "\"clh\":null"),      "valid hum should not be null");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"cst\":0"),     "sensor should not be stale (hum kept it alive)");
+}
+
+// Reconnect with partial recovery: humidity came back, temp still NaN.
+// The || in main.cpp updates last_ok_ms when either reading succeeds, so sensor is not stale.
+// Expect: cst:0 (not stale), clt:null (temp still NaN), clh has value.
+void test_reconnect_partial_hum_ok_temp_nan(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = std::numeric_limits<float>::quiet_NaN();  // temp still broken
+    sv.ceiling_hum        = 48.0f;                                    // hum just recovered
+    sv.bench_temp         = 65.0f;
+    sv.bench_hum          = 40.0f;
+    sv.stove_temp         = 200.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 9950;   // hum success just updated this
+    sv.bench_last_ok_ms   = 9950;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    char buf[512];
+    buildJsonFull(sv, ms, ps, 10000UL, buf, sizeof(buf)); // diff=50 < threshold
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"cst\":0"),    "sensor should not be stale after hum recovery");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"clt\":null"), "temp still NaN -> clt must be null");
+    TEST_ASSERT_NULL_MESSAGE(strstr(buf, "\"clh\":null"),     "recovered hum must not be null");
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_json_contains_all_keys);
@@ -286,5 +429,10 @@ int main(int argc, char **argv) {
     RUN_TEST(test_staleness_exactly_at_threshold_not_stale);
     RUN_TEST(test_staleness_one_over_threshold_is_stale);
     RUN_TEST(test_staleness_threshold_zero_never_stale);
+    RUN_TEST(test_reconnect_after_stale_restores_value);
+    RUN_TEST(test_stale_with_nan_value_still_null);
+    RUN_TEST(test_simultaneous_both_sensors_stale_all_fields_null);
+    RUN_TEST(test_partial_dht_failure_temp_nan_hum_valid);
+    RUN_TEST(test_reconnect_partial_hum_ok_temp_nan);
     return UNITY_END();
 }

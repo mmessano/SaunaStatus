@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Conventions
+
+This project uses Python and C/C++ (ESP32 Arduino). Configuration values should be exposed as `#define` or `constexpr` where possible to keep them easily tunable.
+
 ## Project Overview
 
 ESP32-based sauna automation system. Monitors temperature/humidity via PT1000 (stove) and dual DHT21 (ceiling/bench) sensors, monitors power via INA260, and controls two stepper-driven damper vents using dual PID controllers. Integrates with InfluxDB, MQTT (Home Assistant MQTT Discovery), and provides a local WebSocket/HTTP interface.
@@ -11,6 +15,14 @@ This is an ESP32 embedded project (sauna controller) using Arduino/PlatformIO. K
 ## Coding Conventions
 
 When modifying sensor-related code, ensure stale/disconnected sensor values are handled explicitly (set to NaN or sentinel value, not retained). Always test the disconnect/reconnect path.
+
+## Hardware & Sensors
+
+When modifying sensor or hardware-related code, always handle failure/disconnection states explicitly — never retain stale values when a device goes offline.
+
+## Code Quality
+
+After making bug fixes or feature changes to ESP32/embedded code, review all related state variables to ensure they are properly reset or invalidated on error conditions.
 
 ## Build & Testing
 
@@ -44,7 +56,7 @@ All firmware commands default to the `upesy_wroom` environment (board: `denky32`
 
 ### Firmware: `src/main.cpp`
 
-1204 lines. Includes `sauna_logic.h` for all portable pure-logic functions. Key sections:
+~1718 lines. Includes `sauna_logic.h` for all portable pure-logic functions. Key sections:
 
 - Pin mapping comment block (lines 20–46)
 - Sensor, motor, and PID global declarations
@@ -53,7 +65,7 @@ All firmware commands default to the `upesy_wroom` environment (board: `denky32`
 - `checkOverheat()` — safety system; see Safety Systems section
 - `buildJson()` — assembles structs and calls `buildJsonFull()` from sauna_logic.h
 - `writeInflux()` — writes `sauna_status` and `sauna_control` to InfluxDB
-- HTTP handlers: `handleRoot`, `handleLog`, `handleDeleteStatus`, `handleDeleteControl`, `handleHistory`, `handleMotorCmd`, `handlePidToggle`, `handleSetpoint`
+- HTTP handlers: `handleRoot`, `handleLog`, `handleDeleteStatus`, `handleDeleteControl`, `handleHistory`, `handleMotorCmd`, `handlePidToggle`, `handleSetpoint`, `handleConfigSave`
 - MQTT: `mqttCallback`, `mqttPublishState`, `mqttPublishDiscovery`, `mqttConnect`
 - `setup()` — initializes all peripherals, WiFi, InfluxDB, HTTP, WebSocket, MQTT; loads config layers in order
 - `loop()` — 2-second sensor/PID/WebSocket/MQTT cycle; 60-second InfluxDB write cycle
@@ -111,7 +123,7 @@ Fallback: if `stove_temp` is NaN, `stoveReading()` returns the average of ceilin
 Both ULN2003 boards powered at 5V.
 
 - `VENT_STEPS = 1024` — default full-open step count (90° quarter-turn on 28BYJ-48)
-- Both motors run at 12 RPM (`outflow.setRpm(12)` / `inflow.setRpm(12)`)
+- Both motors run at `MOTOR_RPM` RPM (default 12; override with `-DMOTOR_RPM=xxx`)
 - Calibrated full-open step counts are stored in NVS as `omx` (outflow) and `imx` (inflow) and override `VENT_STEPS` at runtime
 - Positions reported as 0–100% (`outflow_pos` / `inflow_pos`) computed as `target * 100 / max_steps`
 - Minimum PID move threshold: 5 steps — deltas smaller than this are ignored to suppress jitter
@@ -130,8 +142,8 @@ Output 0–255 is linearly mapped to 0–`max_steps` for the corresponding motor
 
 | Mode | Kp | Ki | Kd | Condition |
 |---|---|---|---|---|
-| Aggressive | 4.0 | 0.2 | 1.0 | error > 10°C from setpoint |
-| Conservative | 1.0 | 0.05 | 0.25 | error ≤ 10°C from setpoint |
+| Aggressive | 4.0 | 0.2 | 1.0 | error > `PID_CONSERVATIVE_THRESHOLD_C` (default 10°C) |
+| Conservative | 1.0 | 0.05 | 0.25 | error ≤ `PID_CONSERVATIVE_THRESHOLD_C` |
 
 Setpoints default to `DEFAULT_CEILING_SP_F=160°F` and `DEFAULT_BENCH_SP_F=120°F` (converted to °C internally). Both PIDs default to disabled at boot; must be explicitly enabled via HTTP, MQTT, or config.
 
@@ -166,7 +178,7 @@ Stale detection does not affect PID computation — that relies on NaN checking 
 
 ## Network Stack
 
-- WiFi static IP: `192.168.1.200`, gateway: `192.168.1.1`, subnet: `255.255.255.0`, DNS: `8.8.8.8`
+- WiFi static IP: `192.168.1.200`, gateway: `192.168.1.100`, subnet: `255.255.255.0`, DNS: `8.8.8.8`
 - Credentials from `src/secrets.h`
 
 ### HTTP Server (port 80)
@@ -181,6 +193,8 @@ Stale detection does not affect PID computation — that relies on NaN checking 
 | `GET /setpoint?ceiling=F&bench=F` | `handleSetpoint` | Sets PID setpoints in °F (32–300); persists to NVS |
 | `GET /pid?ceiling=0\|1&bench=0\|1` | `handlePidToggle` | Enables/disables PID controllers; persists to NVS |
 | `GET /motor?motor=outflow\|inflow&cmd=CMD&steps=N` | `handleMotorCmd` | Motor control |
+| `POST /config/save` | `handleConfigSave` | Updates runtime config (setpoints, PID flags, intervals, IP, device name); persists to NVS |
+| `GET /config` | `handleConfigGet` | Returns current runtime config as JSON |
 
 Motor `cmd` values: `cw`, `ccw`, `open`, `close`, `third`, `twothird`, `stop`, `zero` (mark closed), `setopen` (mark fully open + persist). Default `steps=64`; clamped to `[1, VENT_STEPS*4]`.
 
@@ -238,17 +252,17 @@ Three-tier layered config; later layers win. Applied in this order during `setup
 
 **Layer 1: Build-flag defaults** (compile time)
 - Set via `-D` flags in `platformio.ini`
-- Keys: `DEFAULT_CEILING_SP_F` (160.0), `DEFAULT_BENCH_SP_F` (120.0), `TEMP_LIMIT_C` (120.0), `SERIAL_LOG_INTERVAL_MS` (10000), `STALE_THRESHOLD_MS` (10000)
+- Keys: see **Build-Flag Overrides** table below for the full list
 
 **Layer 2: Fleet defaults — `/config.json` in LittleFS** (loaded by `loadLittleFSConfig()`)
 - JSON file uploaded with filesystem image (`pio run -t uploadfs`)
 - Overrides build-flag defaults; applies the same values to every device flashed with the same image
-- Supported keys: `ceiling_setpoint_f` (float, °F), `bench_setpoint_f` (float, °F), `ceiling_pid_enabled` (bool), `bench_pid_enabled` (bool)
+- Supported keys: `ceiling_setpoint_f` (float, °F), `bench_setpoint_f` (float, °F), `ceiling_pid_enabled` (bool), `bench_pid_enabled` (bool), `sensor_read_interval_ms` (uint, 500–10000), `serial_log_interval_ms` (uint, 1000–60000), `static_ip` (string, e.g. `"192.168.1.200"`), `device_name` (string, alphanumeric/`_`/`-`, max 24 chars)
 - Motor calibration (`omx`/`imx`) is device-specific and intentionally not read from this file
 - Missing file is silently ignored; JSON parse errors are logged and the layer is skipped
 
 **Layer 3: Per-device NVS** (namespace `sauna`, loaded via `Preferences`)
-- Written by HTTP `/setpoint`, `/pid`, `/motor?cmd=setopen` endpoints and MQTT subscription callbacks
+- Written by HTTP `/setpoint`, `/pid`, `/motor?cmd=setopen`, `/config/save` endpoints and MQTT subscription callbacks
 - Each key is guarded by `prefs.isKey()` so a missing NVS key never silently reverts a Layer 2 value
 
 ## Build-Flag Overrides
@@ -262,10 +276,28 @@ All can be set in `platformio.ini` under `build_flags` using `-DNAME=value`:
 | `TEMP_LIMIT_C` | `120.0f` | Overheat alarm threshold (°C) |
 | `SERIAL_LOG_INTERVAL_MS` | `10000` | Serial status log throttle (ms) |
 | `STALE_THRESHOLD_MS` | `10000UL` | DHT stale-reading timeout (ms); 0 disables |
+| `INFLUX_WRITE_INTERVAL_MS` | `60000UL` | InfluxDB write interval (ms) |
+| `MQTT_RECONNECT_INTERVAL_MS` | `5000UL` | MQTT reconnect retry interval (ms) |
+| `MOTOR_RPM` | `12` | Stepper motor speed (RPM) |
+| `PID_MIN_STEP_DELTA` | `5` | Minimum PID output delta to actuate motor (steps) |
+| `PID_CONSERVATIVE_THRESHOLD_C` | `10.0f` | PID mode switch threshold (°C error from setpoint) |
+| `SETPOINT_MIN_F` | `32.0f` | Minimum valid setpoint (°F) |
+| `SETPOINT_MAX_F` | `300.0f` | Maximum valid setpoint (°F) |
+| `DEFAULT_SENSOR_READ_INTERVAL_MS` | `2000UL` | Default sensor read interval (ms) |
+| `DEFAULT_STATIC_IP` | `"192.168.1.200"` | Default device static IP |
+| `WS_JSON_BUF_SIZE` | `320` | WebSocket JSON output buffer (bytes) |
+| `MQTT_BUF_SIZE` | `512` | MQTT client buffer size (bytes) |
+| `NTP_SERVER_LOCAL` | `"192.168.1.100"` | Primary NTP server |
+| `WIFI_GATEWAY_IP` | `192, 168, 1, 100` | WiFi gateway (IPAddress initializer) |
+| `WIFI_DNS_IP` | `8, 8, 8, 8` | Primary DNS (IPAddress initializer) |
+| `SENSOR_READ_INTERVAL_MIN_MS` | `500UL` | Minimum sensor read interval (ms) |
+| `SENSOR_READ_INTERVAL_MAX_MS` | `10000UL` | Maximum sensor read interval (ms) |
+| `SERIAL_LOG_INTERVAL_MIN_MS` | `1000UL` | Minimum serial log interval (ms) |
+| `SERIAL_LOG_INTERVAL_MAX_MS` | `60000UL` | Maximum serial log interval (ms) |
 
 ## NVS Persistence
 
-Namespace: `sauna`. Written by `savePrefs()`. Read during `setup()` after LittleFS config.
+Namespace: `sauna`. Written by `savePrefs()` and by inline `prefs.put*()` calls in `handleConfigSave()`. Read during `setup()` after LittleFS config.
 
 | Key | Type | Stores |
 |---|---|---|
@@ -275,6 +307,10 @@ Namespace: `sauna`. Written by `savePrefs()`. Read during `setup()` after Little
 | `ben` | bool | Bench PID enabled |
 | `omx` | int | Outflow motor calibrated full-open step count |
 | `imx` | int | Inflow motor calibrated full-open step count |
+| `sri` | uint | Sensor read interval (ms) |
+| `slg` | uint | Serial log interval (ms) |
+| `sip` | string | Static IP address (requires restart) |
+| `dn` | string | Device name (requires restart) |
 
 Note: setpoints are stored in °C internally; the HTTP/MQTT API accepts and returns °F.
 
@@ -392,3 +428,11 @@ KiCad schematics: `docs/kicad/`
 #define MQTT_USER        "..."   // set to "" to connect without credentials
 #define MQTT_PASS        "..."
 ```
+
+## Lessons Learned
+
+**Use `||` not `&&` when updating sensor "last seen" timestamps.** A DHT sensor returns temp and humidity as separate readings; either can be NaN independently. Using `&&` to gate `last_ok_ms` means a sensor with a failed humidity channel is falsely declared dead, triggering stale detection and closing the vents. Use `||`: if any reading from the sensor succeeds, the sensor is alive.
+
+**When adding a field to the WebSocket JSON schema, verify all consumers use it.** The `cst`/`bst` stale flags were correctly computed and transmitted for multiple sessions before the UI was found to silently ignore them. After adding any new JSON field, check every consumer (dashboard JS, MQTT handler, InfluxDB writer) before considering the feature complete.
+
+**Apply sensor validity checks to every data consumer, not just the display path.** Stale detection was added to `buildJsonFull()` for display, but the PID controllers only checked `!isnan()` — so a stale-but-non-NaN reading could still drive the motors. Whenever a new validity condition is introduced (NaN guard, staleness, range check), audit all consumers: display, PID, MQTT, InfluxDB, and serial log.
