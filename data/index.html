@@ -197,11 +197,29 @@
           el.innerText = v !== null ? v : 'ERR';
           el.style.color = v !== null ? '#e94560' : '#fc8181';
         }
-        if ('clt' in d) set('clt', d.clt);
-        if ('clh' in d) set('clh', d.clh);
-        if ('d5t' in d) set('d5t', d.d5t);
-        if ('d5h' in d) set('d5h', d.d5h);
-        if ('tct' in d) set('tct', d.tct);
+        function setSensor(tempId, humId, tempVal, humVal, stale) {
+          [tempId, humId].forEach(function(id, i) {
+            var v = i === 0 ? tempVal : humVal;
+            var el = document.getElementById(id);
+            if (stale) {
+              el.innerText = '--';
+              el.style.color = '#d97706';
+            } else if (v === null) {
+              el.innerText = 'ERR';
+              el.style.color = '#fc8181';
+            } else {
+              el.innerText = v;
+              el.style.color = '#e94560';
+            }
+          });
+        }
+        if ('clt' in d) setSensor('clt', 'clh', d.clt, d.clh, d.cst);
+        if ('d5t' in d) setSensor('d5t', 'd5h', d.d5t, d.d5h, d.bst);
+        if ('tct' in d) {
+          var el = document.getElementById('tct');
+          el.innerText = d.tct !== null ? d.tct : '--';
+          el.style.color = d.tct !== null ? '#e94560' : '#718096';
+        }
         function setMotor(posId, dirId, pos, dir) {
           var dirLabel = dir === 1 ? 'CW' : dir === -1 ? 'CCW' : (pos > 0 ? 'HOLD' : '---');
           var el = document.getElementById(posId);

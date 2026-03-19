@@ -1425,12 +1425,12 @@ void loop()
     // Read all sensors
     ceiling_hum = dhtCeiling.readHumidity();
     ceiling_temp = dhtCeiling.readTemperature();
-    if (!isnan(ceiling_temp) && !isnan(ceiling_hum))
+    if (!isnan(ceiling_temp) || !isnan(ceiling_hum))
       ceiling_last_ok_ms = millis();
 
     bench_hum = dhtBench.readHumidity();
     bench_temp = dhtBench.readTemperature();
-    if (!isnan(bench_temp) && !isnan(bench_hum))
+    if (!isnan(bench_temp) || !isnan(bench_hum))
       bench_last_ok_ms = millis();
 
     float raw_temp = stove_thermo.temperature(RNOMINAL, RREF);
@@ -1475,7 +1475,7 @@ void loop()
 
     // CeilingPID → Outflow motor (A)
     bool c_cons = false;
-    if (!alarm && ceiling_pid_en && !isnan(ceiling_temp))
+    if (!alarm && ceiling_pid_en && !isnan(ceiling_temp) && !isSensorStale(ceiling_last_ok_ms, millis(), STALE_THRESHOLD_MS))
     {
       float c_gap = fabsf(Ceilingpoint - ceiling_temp);
       c_cons = c_gap < 10.0f;
@@ -1524,7 +1524,7 @@ void loop()
 
     // BenchPID → Inflow stepper
     bool b_cons = false;
-    if (!alarm && bench_pid_en && !isnan(bench_temp))
+    if (!alarm && bench_pid_en && !isnan(bench_temp) && !isSensorStale(bench_last_ok_ms, millis(), STALE_THRESHOLD_MS))
     {
       float b_gap = fabsf(Benchpoint - bench_temp);
       b_cons = b_gap < 10.0f;
