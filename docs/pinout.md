@@ -59,6 +59,23 @@ Motor connects via standard 28BYJ-48 5-wire JST connector to ULN2003 output head
 
 ---
 
+## INA260 — Power Monitor (I2C)
+
+| INA260 Pin | ESP32 Pin | Notes |
+|---|---|---|
+| SDA | GPIO 4 | Non-default I2C bus; `Wire.begin(4, 13)` |
+| SCL | GPIO 13 | Non-default I2C bus; `Wire.begin(4, 13)` |
+| VCC | 3.3V | |
+| GND | GND | |
+| A0 | GND | I2C address bit 0 = 0 → address 0x40 |
+| A1 | GND | I2C address bit 1 = 0 → address 0x40 |
+
+- Integrated 2 mΩ shunt; no external shunt resistor required
+- I2C address: 0x40 (A0=GND, A1=GND)
+- API: `readBusVoltage()` (V), `readCurrent()` (mA), `readPower()` (mW)
+
+---
+
 ## ESP32 Power Distribution
 
 | ESP32 Pin | Supplies |
@@ -73,10 +90,12 @@ Motor connects via standard 28BYJ-48 5-wire JST connector to ULN2003 output head
 
 | GPIO | Function |
 |---|---|
+| 4 | INA260 SDA (I2C) |
 | 5 | MAX31865 CS |
 | 14 | Outflow stepper IN4 |
 | 16 | DHT21 Ceiling DATA |
 | 17 | DHT21 Bench DATA |
+| 13 | INA260 SCL (I2C) |
 | 18 | VSPI SCK (MAX31865) |
 | 19 | VSPI MISO (MAX31865 SDO) |
 | 21 | Outflow stepper IN1 |

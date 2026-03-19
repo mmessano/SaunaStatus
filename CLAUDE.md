@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ESP32-based sauna automation system. Monitors temperature/humidity via PT1000 (stove) and dual DHT21 (ceiling/bench) sensors, monitors power via INA219, and controls two stepper-driven damper vents using dual PID controllers. Integrates with InfluxDB, MQTT (Home Assistant MQTT Discovery), and provides a local WebSocket/HTTP interface.
+ESP32-based sauna automation system. Monitors temperature/humidity via PT1000 (stove) and dual DHT21 (ceiling/bench) sensors, monitors power via INA260, and controls two stepper-driven damper vents using dual PID controllers. Integrates with InfluxDB, MQTT (Home Assistant MQTT Discovery), and provides a local WebSocket/HTTP interface.
 
 This is an ESP32 embedded project (sauna controller) using Arduino/PlatformIO. Key technologies: C++, ESP32, WebSocket, DHT sensors, KiCad for PCB design. Always consider memory constraints and real-time requirements when suggesting code changes.
 
@@ -80,7 +80,7 @@ Contains:
 | Stove | PT1000 via MAX31865 | Hardware SPI (VSPI) | CS=GPIO5, SCK=GPIO18, MISO=GPIO19, MOSI=GPIO23 | 3-wire mode; RREF=4300.0Ω, RNOMINAL=1000.0Ω |
 | Ceiling | DHT21 (AM2301) | 1-wire | GPIO16 | 10kΩ pull-up DATA→VCC |
 | Bench | DHT21 (AM2301) | 1-wire | GPIO17 | 10kΩ pull-up DATA→VCC |
-| Power | INA219 | I2C | SDA=GPIO4, SCL=GPIO13 | 0.1Ω shunt; optional — gracefully disabled if absent |
+| Power | INA260 | I2C | SDA=GPIO4, SCL=GPIO13 | Integrated 2mΩ shunt; no external resistor; optional — gracefully disabled if absent |
 
 SPI pins GPIO18/19/23 are reserved for MAX31865; do not use for other purposes.
 
@@ -225,9 +225,9 @@ Home Assistant MQTT Discovery publishes retained configs to `homeassistant/senso
 | `bop` | float\|null | Bench PID output (0–255) |
 | `btm` | 0\|1 | Bench PID in conservative mode (1) or aggressive (0) |
 | `ben` | 0\|1 | Bench PID enabled |
-| `pvolt` | float\|null | Bus voltage (V); null if INA219 absent or NaN |
-| `pcurr` | float\|null | Current (mA); null if INA219 absent or NaN |
-| `pmw` | float\|null | Power (mW); null if INA219 absent or NaN |
+| `pvolt` | float\|null | Bus voltage (V); null if INA260 absent or NaN |
+| `pcurr` | float\|null | Current (mA); null if INA260 absent or NaN |
+| `pmw` | float\|null | Power (mW); null if INA260 absent or NaN |
 | `oa` | 0\|1 | Overheat alarm active |
 | `cst` | 0\|1 | Ceiling sensor stale (1 = data is stale or never read) |
 | `bst` | 0\|1 | Bench sensor stale (1 = data is stale or never read) |
@@ -295,9 +295,9 @@ Tags on all points: `device=ESP32`, `SSID=<wifi-ssid>`.
 | `bench_temp` | float | Bench temperature (°C); omitted if NaN |
 | `bench_hum` | float | Bench humidity (%); omitted if NaN |
 | `stove_temp` | float | Stove temp or ceiling/bench average fallback (°C); omitted if NaN |
-| `bus_voltage_V` | float | INA219 bus voltage (V); omitted if INA219 absent |
-| `current_mA` | float | INA219 current (mA); omitted if INA219 absent |
-| `power_mW` | float | INA219 power (mW); omitted if INA219 absent |
+| `bus_voltage_V` | float | INA260 bus voltage (V); omitted if INA260 absent |
+| `current_mA` | float | INA260 current (mA); omitted if INA260 absent |
+| `power_mW` | float | INA260 power (mW); omitted if INA260 absent |
 
 **Measurement `sauna_control`** — PID and motor state:
 

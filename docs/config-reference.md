@@ -60,8 +60,8 @@ Fixed values tied to the physical hardware. Not intended to be overridden withou
 | `TZ_INFO` | `"CST6CDT,M3.2.0,M11.1.0"` | POSIX timezone string (US Central) | `src/main.cpp` |
 | `RREF` | `4300.0` | MAX31865 reference resistor value (Ω) | `src/main.cpp` |
 | `RNOMINAL` | `1000.0` | PT1000 nominal resistance at 0°C (Ω) | `src/main.cpp` |
-| `INA219_SDA` | `4` | I2C SDA GPIO for INA219 power monitor | `src/main.cpp` |
-| `INA219_SCL` | `13` | I2C SCL GPIO for INA219 power monitor | `src/main.cpp` |
+| `INA260_SDA` | `4` | I2C SDA GPIO for INA260 power monitor | `src/main.cpp` |
+| `INA260_SCL` | `13` | I2C SCL GPIO for INA260 power monitor | `src/main.cpp` |
 | `DHTPIN_CEILING` | `16` | GPIO for ceiling DHT21 sensor | `src/main.cpp` |
 | `DHTPIN_BENCH` | `17` | GPIO for bench DHT21 sensor | `src/main.cpp` |
 | `DHTTYPE` | `DHT21` | DHT sensor model (AM2301) | `src/main.cpp` |

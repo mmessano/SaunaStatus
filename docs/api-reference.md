@@ -9,7 +9,7 @@ All API values are derived directly from `src/main.cpp` and `src/sauna_logic.h`.
 | Property       | Value                  |
 |----------------|------------------------|
 | Static IP      | `192.168.1.200`        |
-| Gateway        | `192.168.1.1`          |
+| Gateway        | `192.168.1.100`        |
 | Subnet         | `255.255.255.0`        |
 | DNS            | `8.8.8.8`              |
 | HTTP port      | `80`                   |
@@ -308,9 +308,9 @@ All fields are always present. Temperature fields are in **degrees Fahrenheit**.
 | `bop`   | number \| null  | raw 0–255 | Bench PID raw output (QuickPID output, 0–255 scale)                       | Null only if NaN (should not occur)                     |
 | `btm`   | number (0/1)    | —       | Bench PID tuning mode: `1`=conservative (error < 10 °C), `0`=aggressive    | Never null                                              |
 | `ben`   | number (0/1)    | —       | Bench PID enabled: `1`=enabled, `0`=disabled                               | Never null                                              |
-| `pvolt` | number \| null  | V       | INA219 bus voltage                                                          | Null if INA219 not detected at boot, or reading is NaN  |
-| `pcurr` | number \| null  | mA      | INA219 current                                                              | Same as `pvolt`                                         |
-| `pmw`   | number \| null  | mW      | INA219 power                                                                | Same as `pvolt`                                         |
+| `pvolt` | number \| null  | V       | INA260 bus voltage                                                          | Null if INA260 not detected at boot, or reading is NaN  |
+| `pcurr` | number \| null  | mA      | INA260 current                                                              | Same as `pvolt`                                         |
+| `pmw`   | number \| null  | mW      | INA260 power                                                                | Same as `pvolt`                                         |
 | `oa`    | number (0/1)    | —       | Overheat alarm: `1`=active (any air sensor ≥ 120 °C; vents forced open)    | Never null                                              |
 | `cst`   | number (0/1)    | —       | Ceiling sensor stale flag: `1`=stale (no valid read in > 10,000 ms or never read) | Never null                                        |
 | `bst`   | number (0/1)    | —       | Bench sensor stale flag: `1`=stale                                          | Never null                                              |
@@ -423,9 +423,9 @@ Published every 2 seconds (synchronized with the sensor read cycle). QoS 0, not 
 | `bench_pid_en`     | string         | —     | `"ON"` or `"OFF"`                                                          |
 | `ceiling_setpoint` | number         | °F    | Ceiling PID setpoint                                                       |
 | `bench_setpoint`   | number         | °F    | Bench PID setpoint                                                         |
-| `bus_voltage`      | number \| null | V     | INA219 bus voltage; `null` if INA219 absent or NaN                         |
-| `current_mA`       | number \| null | mA    | INA219 current; `null` if INA219 absent or NaN                             |
-| `power_mW`         | number \| null | mW    | INA219 power; `null` if INA219 absent or NaN                               |
+| `bus_voltage`      | number \| null | V     | INA260 bus voltage; `null` if INA260 absent or NaN                         |
+| `current_mA`       | number \| null | mA    | INA260 current; `null` if INA260 absent or NaN                             |
+| `power_mW`         | number \| null | mW    | INA260 power; `null` if INA260 absent or NaN                               |
 
 Note: The MQTT payload does not include stale flags (`cst`/`bst`) or motor direction (`ofd`/`ifd`) — those are WebSocket-only fields. The MQTT payload also does not include the overheat alarm flag.
 
@@ -509,9 +509,9 @@ Sensor readings and motor positions.
 | `bench_temp`   | float   | °C    | Only when DHT21 bench reading is not NaN          |
 | `bench_hum`    | float   | %RH   | Only when DHT21 bench reading is not NaN          |
 | `stove_temp`   | float   | °C    | PT1000 if valid; otherwise ceiling+bench average; omitted if all NaN |
-| `bus_voltage_V`| float   | V     | Only when INA219 detected at boot and value is not NaN |
-| `current_mA`   | float   | mA    | Only when INA219 detected at boot and value is not NaN |
-| `power_mW`     | float   | mW    | Only when INA219 detected at boot and value is not NaN |
+| `bus_voltage_V`| float   | V     | Only when INA260 detected at boot and value is not NaN |
+| `current_mA`   | float   | mA    | Only when INA260 detected at boot and value is not NaN |
+| `power_mW`     | float   | mW    | Only when INA260 detected at boot and value is not NaN |
 
 Note: InfluxDB temperatures are written in **degrees Celsius** (the raw sensor values), unlike the HTTP/MQTT/WebSocket APIs which use Fahrenheit.
 

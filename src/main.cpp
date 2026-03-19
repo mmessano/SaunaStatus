@@ -1,6 +1,6 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_INA219.h>
+#include <Adafruit_INA260.h>
 #include <Adafruit_MAX31865.h>
 #include <CheapStepper.h>
 #include <InfluxDbClient.h>
@@ -31,9 +31,9 @@
 //   GPIO 19  — VSPI MISO      reserved — do not use
 //   GPIO 23  — VSPI MOSI      reserved — do not use
 //
-// Power monitor / I2C (INA219)
-//   GPIO  4  — SDA            (INA219_SDA)
-//   GPIO 13  — SCL            (INA219_SCL)
+// Power monitor / I2C (INA260)
+//   GPIO  4  — SDA            (INA260_SDA)
+//   GPIO 13  — SCL            (INA260_SCL)
 //
 // Outflow stepper — upper vent (CheapStepper → ULN2003)
 //   GPIO 21  IN1  (dOUTFLOW1)
@@ -71,12 +71,13 @@ Adafruit_MAX31865 stove_thermo = Adafruit_MAX31865(5);
 #define RREF 4300.0
 #define RNOMINAL 1000.0
 
-// INA219 power monitor — I2C on GPIO4 (SDA) / GPIO13 (SCL)
-// Wire a 0.1 Ω shunt in series with the positive supply rail.
-#define INA219_SDA 4
-#define INA219_SCL 13
-Adafruit_INA219 ina219;
-bool ina219_ok = false;
+// INA260 power monitor — I2C on GPIO4 (SDA) / GPIO13 (SCL)
+// Integrated 2 mΩ shunt; no external resistor required.
+// I2C address 0x40 (A0=GND, A1=GND).
+#define INA260_SDA 4
+#define INA260_SCL 13
+Adafruit_INA260 ina260;
+bool ina260_ok = false;
 
 // Add AM2301 sensors aka DHT21
 #define DHTPIN_CEILING 16
@@ -364,7 +365,7 @@ bool writeInflux()
   if (!isnan(stove_log))
     status.addField("stove_temp", stove_log);
   // Power monitor fields must be added before writePoint — bug fix
-  if (ina219_ok)
+  if (ina260_ok)
   {
     if (!isnan(pwr_bus_V))
       status.addField("bus_voltage_V", pwr_bus_V);
@@ -1266,13 +1267,13 @@ void setup()
                 ceiling_pid_en, bench_pid_en,
                 outflow_max_steps, inflow_max_steps);
 
-  // INA219 power monitor
-  Wire.begin(INA219_SDA, INA219_SCL);
-  ina219_ok = ina219.begin();
-  if (ina219_ok)
-    Serial.println("INA219 power monitor ready");
+  // INA260 power monitor
+  Wire.begin(INA260_SDA, INA260_SCL);
+  ina260_ok = ina260.begin();
+  if (ina260_ok)
+    Serial.println("INA260 power monitor ready");
   else
-    Serial.println("INA219 not found — power monitoring disabled");
+    Serial.println("INA260 not found — power monitoring disabled");
 
   // Thermocouple - PT1000
   Serial.println("Stove Thermocouple Sensor Test!");
@@ -1461,12 +1462,12 @@ void loop()
       stove_temp = raw_temp;
     }
 
-    // INA219 power monitor
-    if (ina219_ok)
+    // INA260 power monitor
+    if (ina260_ok)
     {
-      pwr_bus_V = ina219.getBusVoltage_V();
-      pwr_current_mA = ina219.getCurrent_mA();
-      pwr_mW = ina219.getPower_mW();
+      pwr_bus_V      = ina260.readBusVoltage();
+      pwr_current_mA = ina260.readCurrent();
+      pwr_mW         = ina260.readPower();
     }
 
     // Safety check — opens vents and suppresses PID if air temps are too high
@@ -1637,7 +1638,7 @@ void loop()
       Serial.println();
 
       // Power monitor
-      if (ina219_ok)
+      if (ina260_ok)
       {
         Serial.printf("Power     | %6.2f V | %7.1f mA | %8.1f mW\n",
                       pwr_bus_V, pwr_current_mA, pwr_mW);

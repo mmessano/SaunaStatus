@@ -11,9 +11,9 @@ Every GPIO currently allocated. Do not assign these to any other function.
 
 | GPIO | Net / Label          | Direction | Connected To                       | Constraint                         |
 |------|----------------------|-----------|------------------------------------|------------------------------------|
-| 4    | SDA (I2C)            | Bidirec.  | INA219 SDA                         | Non-default I2C bus; call `Wire.begin(4, 13)` |
+| 4    | SDA (I2C)            | Bidirec.  | INA260 SDA                         | Non-default I2C bus; call `Wire.begin(4, 13)` |
 | 5    | SPI_CS               | Output    | MAX31865 CS                        | VSPI CS; hardware SPI              |
-| 13   | SCL (I2C)            | Output    | INA219 SCL                         | Non-default I2C bus; call `Wire.begin(4, 13)` |
+| 13   | SCL (I2C)            | Output    | INA260 SCL                         | Non-default I2C bus; call `Wire.begin(4, 13)` |
 | 14   | OUTFLOW_I4           | Output    | ULN2003 (U5) IN4 → outflow stepper | Boot: outputs PWM; no conflict here |
 | 16   | DHT_CEILING          | Input     | DHT21/AM2301 ceiling DATA          | 10 kΩ pull-up to 3.3 V required    |
 | 17   | DHT_BENCH            | Input     | DHT21/AM2301 bench DATA            | 10 kΩ pull-up to 3.3 V required    |
@@ -71,18 +71,18 @@ GPIO 12 must be LOW or floating at boot to select 3.3 V flash. The ESP32-WROOM-3
 
 ## 3. I2C Bus
 
-Non-default I2C assignment; the firmware calls `Wire.begin(INA219_SDA, INA219_SCL)` to override the hardware defaults.
+Non-default I2C assignment; the firmware calls `Wire.begin(INA260_SDA, INA260_SCL)` to override the hardware defaults.
 
-| Signal | GPIO | INA219 Pin |
+| Signal | GPIO | INA260 Pin |
 |--------|------|------------|
 | SDA    | 4    | SDA        |
 | SCL    | 13   | SCL        |
 
-**Device address:** INA219 default I2C address is 0x40 (A0 and A1 tied to GND). The firmware uses `Adafruit_INA219 ina219` with no address argument, confirming 0x40.
+**Device address:** INA260 default I2C address is 0x40 (A0 and A1 tied to GND). The firmware uses `Adafruit_INA260 ina260` with no address argument, confirming 0x40.
 
-**Pull-ups:** I2C lines require pull-up resistors to 3.3 V. Typical value 4.7 kΩ. If using the Adafruit INA219 breakout, pull-ups are on the breakout board.
+**Pull-ups:** I2C lines require pull-up resistors to 3.3 V. Typical value 4.7 kΩ. If using the Adafruit INA260 breakout, pull-ups are on the breakout board.
 
-**Note:** The INA219 is present in the firmware but is absent from the KiCad schematic (SaunaStatus.kicad_sch). The schematic must be updated to include U_INA219 before the PCB layout reflects the full circuit. The `ina219_ok` runtime flag guards all INA219 reads, so the firmware degrades gracefully if the device is absent.
+**Note:** The INA260 (U7) is present in the KiCad schematic (SaunaStatus.kicad_sch) but is not yet wired. The I2C connections (SDA=GPIO4, SCL=GPIO13) and address pins (A0=GND, A1=GND) must be routed before the next PCB revision. The `ina260_ok` runtime flag guards all INA260 reads, so the firmware degrades gracefully if the device is absent.
 
 ---
 
@@ -172,18 +172,18 @@ PT1000 connector (J1) is a 6-pin header (Conn_01x06) with nets: REFIN+, FORCE+, 
 
 ---
 
-## 7. Power Monitor (INA219)
+## 7. Power Monitor (INA260)
 
-| Parameter     | Value                              |
-|---------------|------------------------------------|
-| IC            | Adafruit INA219                    |
-| I2C address   | 0x40 (default; A0=GND, A1=GND)    |
-| SDA           | GPIO 4                             |
-| SCL           | GPIO 13                            |
-| Shunt resistor | 0.1 Ω in series with positive supply rail |
-| Max current   | ~3.2 A with 0.1 Ω shunt (default Adafruit library calibration) |
+| Parameter      | Value                                              |
+|----------------|----------------------------------------------------|
+| IC             | Adafruit INA260                                    |
+| I2C address    | 0x40 (default; A0=GND, A1=GND)                    |
+| SDA            | GPIO 4                                             |
+| SCL            | GPIO 13                                            |
+| Shunt resistor | Integrated 2 mΩ (internal to IC; no external resistor required) |
+| Max current    | ±15 A (INA260 internal shunt; 1.25 mA LSB)        |
 
-The firmware initializes the INA219 in `setup()` and sets `ina219_ok = false` if `ina219.begin()` fails. All subsequent reads are gated on this flag. The INA219 is **not currently in the KiCad schematic** and must be added before any PCB revision.
+The firmware initializes the INA260 in `setup()` and sets `ina260_ok = false` if `ina260.begin()` fails. All subsequent reads are gated on this flag. The INA260 (U7, TSSOP-16) is present in the KiCad schematic but **not yet wired**; I2C connections must be routed before the next PCB revision.
 
 ---
 
@@ -224,7 +224,7 @@ Error: Cannot add U2 (no footprint assigned).
 6. **DHT21 DATA lines require 10 kΩ pull-ups.** Omitting pull-ups causes intermittent read failures that are indistinguishable from sensor faults.
 7. **RREF = 4300 Ω for PT1000.** Substituting a 430 Ω reference (PT100 value) while retaining PT1000 will give grossly wrong temperature readings.
 8. **ULN2003 COM must be connected to +5 V.** The 28BYJ-48 requires 5 V coil drive. Connecting COM to 3.3 V results in weak torque and missed steps.
-9. **INA219 shunt is 0.1 Ω.** Changing this value requires updating the `ina219.setCalibration_*()` call or using the appropriate `Adafruit_INA219` constructor to avoid incorrect current/power readings.
+9. **INA260 uses an integrated 2 mΩ shunt.** No external shunt resistor is required. Do not add an external shunt in series with the INA260 — the internal shunt is always active.
 10. **NVS keys `omx` and `imx` store calibrated motor max-steps.** If the motor assembly is physically changed (gear ratio, damper throw), these values must be reset via the calibration API, not by changing `VENT_STEPS` alone.
 
 ---
@@ -254,7 +254,7 @@ Error: Cannot add U2 (no footprint assigned).
 | Safety cutoff | `TEMP_LIMIT_C = 120.0 °C` (248 °F). If any DHT21 sensor reaches this threshold, both vents are driven fully open and PID is suppressed. Override at build time with `-DTEMP_LIMIT_C=115`. |
 | Humidity | DHT21 sensors operate 0–100% RH; sauna humidity can approach 100% with steam. Sensors should be mounted with the grill facing down or protected from direct water splash. |
 | Condensation | All PCB and connector assemblies should be potted or conformal-coated. The ESP32 module itself is not rated for condensing environments. |
-| INA219 placement | The 0.1 Ω shunt resistor will dissipate P = I² × R. At 2 A load (both steppers active): 0.4 W. Use a 0.5 W or greater shunt resistor and ensure it is not enclosed in the hottest part of the enclosure. |
+| INA260 placement | The INA260 has an integrated 2 mΩ shunt; at 2 A load shunt dissipation is only 8 mW — negligible. No external shunt resistor is needed. The IC itself (TSSOP-16) has a typical operating temperature range of −40 to +125 °C; mount away from the stove sensor area if ambient may exceed 85 °C continuously. |
 | Stepper motors | 28BYJ-48 motors are rated for continuous operation up to ~50 °C ambient. Damper positions are set and then held or released; the firmware should de-energize coils after positioning to limit heat buildup in an already-hot enclosure. |
 | Cable routing | DHT21 DATA lines are single-wire and susceptible to noise. Keep DATA wiring away from stepper motor cables. Use twisted-pair or shielded wire for DATA + GND if cable runs exceed ~30 cm. |
 
@@ -273,4 +273,4 @@ Error: Cannot add U2 (no footprint assigned).
 | J1  | PT1000-Connector     | Connector_PinHeader_2.54mm:PinHeader_1x06_...  | 6-pin: REFIN+/−, FORCE+/−, RTDIN+/− |
 | J2  | 28BYJ-48             | Connector_PinHeader_2.54mm:PinHeader_1x04_...  | Outflow motor JST header |
 | J3  | 28BYJ-48             | Connector_PinHeader_2.54mm:PinHeader_1x04_...  | Inflow motor JST header |
-| —   | INA219               | (not in schematic)                             | Add in next revision; I2C 0x40, GPIO 4/13 |
+| U7  | INA260               | Package_SO:TSSOP-16_4.4x5mm_P0.65mm           | Power monitor; I2C 0x40 (A0=A1=GND), GPIO 4 (SDA) / GPIO 13 (SCL); not yet wired in schematic |
