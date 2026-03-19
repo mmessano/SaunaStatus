@@ -440,6 +440,7 @@
       "single_global_label": "ignore",
       "unannotated": "error",
       "unconnected_wire_endpoint": "warning",
+      "undefined_netclass": "error",
       "unit_value_mismatch": "error",
       "unresolved_variable": "error",
       "wire_dangling": "error"
@@ -610,7 +611,7 @@
   },
   "sheets": [
     [
-      "bc409c56-2825-4195-adef-372b9d1f853f",
+      "d19a36c6-5583-4c95-873e-3cdaa80a72d5",
       "Root"
     ]
   ],
