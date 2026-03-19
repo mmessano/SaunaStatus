@@ -10,7 +10,9 @@
       "Bash(pio test:*)",
       "Read(//home/mmessano/.platformio/penv/bin/**)",
       "Bash(/home/mmessano/.platformio/penv/bin/platformio test:*)",
-      "Bash(~/.platformio/penv/bin/pio test:*)"
+      "Bash(~/.platformio/penv/bin/pio test:*)",
+      "Bash(pio run:*)",
+      "Bash(~/.platformio/penv/bin/pio run:*)"
     ]
   },
   "hooks": {
