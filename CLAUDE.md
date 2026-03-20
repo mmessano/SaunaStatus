@@ -2,9 +2,53 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## MCP Server Configuration
+
+MCP servers are configured in `.mcp.json`, NOT in `settings.json` under `mcpServers`. Always check `.mcp.json` first when diagnosing MCP issues. After config changes, advise user to restart Claude Code.
+
+## Settings File Conventions
+
+When writing permission rules or any paths in `.claude/settings.local.json` or `.claude/settings.json`, always use `~/` for paths under the home directory. Never use `/home/<username>/` or any other absolute path containing a hardcoded username.
+
 ## Project Conventions
 
 This project uses Python and C/C++ (ESP32 Arduino). Configuration values should be exposed as `#define` or `constexpr` where possible to keep them easily tunable.
+
+### Config Persistence
+
+Three-tier system — later tiers win. Applied in order during `setup()`:
+
+1. **Build-flag defaults** — `#define` constants in `main.cpp`, all guarded with `#ifndef` so they can be overridden via `-D` in `platformio.ini` without touching source.
+2. **Fleet defaults** — `/config.json` in LittleFS, loaded by `loadLittleFSConfig()`. Missing file is silently ignored. JSON parse errors are logged and the layer is skipped.
+3. **Per-device NVS** — namespace `sauna`, loaded via `Preferences`. Each key is guarded by `prefs.isKey()` — a missing NVS key must never silently revert a Layer 2 value.
+
+Key rules:
+- Setpoints are stored internally in **°C**; the HTTP/MQTT API accepts and returns **°F**. Convert at the boundary, not inside logic.
+- `savePrefs()` writes csp/bsp/cen/ben/omx/imx. Runtime-only fields (sri/slg/sip/dn) are written inline with `prefs.put*()` in `handleConfigSave()`.
+- `static_ip` and `device_name` require a restart to take effect — include `"restart_required":true` in the HTTP response when these change.
+- `handleConfigSave()` uses a **staged validation pattern**: declare all new values, validate every field, then apply and persist in one block at the end. Never apply a partial update on validation failure.
+
+### Sensor Handling
+
+- All sensor floats are initialized to `NAN` at declaration. **Never retain a stale value** — clear to `NAN` on any read failure or timeout.
+- `ceiling_last_ok_ms` / `bench_last_ok_ms` are updated using `||` (either temp **or** humidity succeeding counts as "sensor alive"). Using `&&` falsely kills the sensor when one channel fails.
+- Staleness is evaluated at read time via `isSensorStale(last_ok_ms, millis(), STALE_THRESHOLD_MS)` in `sauna_logic.h`. `last_ok_ms == 0` (never read) is always stale.
+- PID controllers guard on both `!isnan()` **and** `!isSensorStale()` before calling `Compute()`. Neither check substitutes for the other.
+- INA260 is optional — guarded by `ina260_ok`. All power fields are omitted from InfluxDB and JSON when `ina260_ok` is false.
+- InfluxDB writes omit any field whose value is `NAN` rather than writing it as zero or a sentinel.
+
+### Logging Configuration
+
+Two independent intervals, both configurable at runtime via `/config/save` and persisted to NVS:
+
+| Variable | NVS key | Default define | Controls |
+|---|---|---|---|
+| `g_sensor_read_interval_ms` | `sri` | `DEFAULT_SENSOR_READ_INTERVAL_MS` (2000 ms) | How often sensors are read, PID computed, WebSocket broadcast, MQTT published |
+| `g_serial_log_interval_ms` | `slg` | `SERIAL_LOG_INTERVAL_MS` (10000 ms) | How often the tabular serial status table is printed (throttled inside the sensor read block) |
+
+These are **independent**: reducing `g_serial_log_interval_ms` does not increase sensor read frequency, and vice versa. Both have min/max validation bounds (`SENSOR_READ_INTERVAL_MIN/MAX_MS`, `SERIAL_LOG_INTERVAL_MIN/MAX_MS`).
+
+Serial log prints ERR (not 0.0) for NaN sensor values and `---` for unavailable readings.
 
 ## Project Overview
 
@@ -23,6 +67,10 @@ When modifying sensor or hardware-related code, always handle failure/disconnect
 ## Code Quality
 
 After making bug fixes or feature changes to ESP32/embedded code, review all related state variables to ensure they are properly reset or invalidated on error conditions.
+
+### JSON Editing Rules
+
+When editing JSON files, always validate syntax after changes — especially check for trailing commas. Use `python3 -m json.tool <file>` to validate.
 
 ## Build & Testing
 
@@ -436,3 +484,9 @@ KiCad schematics: `docs/kicad/`
 **When adding a field to the WebSocket JSON schema, verify all consumers use it.** The `cst`/`bst` stale flags were correctly computed and transmitted for multiple sessions before the UI was found to silently ignore them. After adding any new JSON field, check every consumer (dashboard JS, MQTT handler, InfluxDB writer) before considering the feature complete.
 
 **Apply sensor validity checks to every data consumer, not just the display path.** Stale detection was added to `buildJsonFull()` for display, but the PID controllers only checked `!isnan()` — so a stale-but-non-NaN reading could still drive the motors. Whenever a new validity condition is introduced (NaN guard, staleness, range check), audit all consumers: display, PID, MQTT, InfluxDB, and serial log.
+
+## ESP32 / Embedded Project Notes
+
+- Config persistence uses a 3-tier system (defaults → NVS → runtime)
+- Sensor logging interval and sensor read interval are independent and configurable via `#define`
+- When sensors disconnect, stale values must be cleared (don't retain last-known values)

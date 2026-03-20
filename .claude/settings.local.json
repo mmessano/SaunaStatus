@@ -16,7 +16,16 @@
       "Skill(update-config)",
       "Bash(git push:*)",
       "Bash(curl:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Read(~/.claude/**)",
+      "Read(~/.config/claude/**)",
+      "Read(~/Documents/repos/KiCAD-MCP-Server/**)",
+      "Bash(xargs ls:*)",
+      "WebSearch",
+      "WebFetch(domain:api.github.com)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''mcpServers'''', {}\\), indent=2\\)\\)\")"
     ]
   },
   "hooks": {
@@ -47,6 +56,10 @@
           {
             "type": "command",
             "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.py) python3 -m py_compile \"$f\" && echo \"Python syntax OK: $f\" ;; *.cpp|*.h) echo 'Remember to verify compile: pio run' ;; esac; } 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.json) python3 -m json.tool \"$f\" > /dev/null 2>&1 || echo \"WARNING: Invalid JSON in $f\" ;; esac; } 2>/dev/null || true"
           }
         ]
       }
