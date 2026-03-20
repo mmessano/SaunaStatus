@@ -148,7 +148,7 @@ inline AdapterResult authCallAdapter(const char *username,
     if (deserializeJson(doc, resp) != DeserializationError::Ok) return ADAPTER_ERROR;
     bool valid = doc["valid"] | false;
     if (!valid) return ADAPTER_REJECTED;
-    const char *role = doc["role"] | "admin";
+    const char *role = doc["role"] | "";  // empty if missing — caller must validate; never default to a privilege level
     strncpy(out_role, role, 16); out_role[16] = '\0';
     return ADAPTER_OK;
 }
