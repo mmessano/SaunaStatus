@@ -306,7 +306,7 @@ inline LoginOutcome authAttemptLogin(const char *username,
     memset(&out, 0, sizeof(out));
     if (adapter_configured && adapter_fn) {
         AdapterResult ar = adapter_fn(username, password, out.role, adapter_ctx);
-        if (ar == ADAPTER_OK)       { out.result = LOGIN_OK;       out.source = AUTH_SRC_ADAPTER; return out; }
+        if (ar == ADAPTER_OK)       { out.result = LOGIN_OK; out.source = AUTH_SRC_ADAPTER; out.role[16] = '\0'; return out; }
         if (ar == ADAPTER_REJECTED) { out.result = LOGIN_REJECTED; out.source = AUTH_SRC_ADAPTER; return out; }
         // ADAPTER_ERROR — fall through to NVS
     }
