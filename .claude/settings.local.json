@@ -50,7 +50,8 @@
       "Bash(do)",
       "Bash(echo \"OK:      $f\")",
       "Bash(echo \"INVALID: $f\")",
-      "Bash(done)"
+      "Bash(done)",
+      "mcp__kicad__run_drc"
     ]
   },
   "hooks": {

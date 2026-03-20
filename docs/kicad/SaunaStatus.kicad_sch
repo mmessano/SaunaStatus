@@ -3039,6 +3039,18 @@
 		(uuid "86e0d8e3-cd4e-4ab2-ac8d-ff8e07cbf2d5")
 	)
 	(junction
+		(at 233.68 177.8)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a1b00001-0000-0000-0000-000000000011")
+	)
+	(junction
+		(at 213.36 167.64)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a1b00001-0000-0000-0000-000000000015")
+	)
+	(junction
 		(at 166.37 142.24)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3103,6 +3115,18 @@
 	(no_connect
 		(at 162.56 213.36)
 		(uuid "8aeebf26-ee3c-4412-88d7-9ecbfd8a9f1b")
+	)
+	(no_connect
+		(at 233.68 167.64)
+		(uuid "a1b00001-0000-0000-0000-000000000009")
+	)
+	(no_connect
+		(at 59.69 48.26)
+		(uuid "a2b00001-0000-0000-0000-000000000021")
+	)
+	(no_connect
+		(at 59.69 104.14)
+		(uuid "a2b00002-0000-0000-0000-000000000021")
 	)
 	(no_connect
 		(at 31.75 157.48)
@@ -3189,6 +3213,16 @@
 			(type default)
 		)
 		(uuid "019e015b-8a52-4c21-a958-589ffb6d620e")
+	)
+	(wire
+		(pts
+			(xy 233.68 177.8) (xy 233.68 182.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "049ae816-c58b-4b41-ae34-a7059e601f91")
 	)
 	(wire
 		(pts
@@ -3279,7 +3313,8 @@
 			(type default)
 		)
 		(uuid "40c1b7bc-9e46-4d54-87a1-7988b7203b32")
-	)	(wire
+	)
+	(wire
 		(pts
 			(xy 46.99 215.9) (xy 46.99 220.98)
 		)
@@ -3328,7 +3363,8 @@
 			(type default)
 		)
 		(uuid "5c48d331-d12d-457c-a252-a89a9ff99179")
-	)	(wire
+	)
+	(wire
 		(pts
 			(xy 134.62 81.28) (xy 124.46 81.28)
 		)
@@ -3367,15 +3403,26 @@
 			(type default)
 		)
 		(uuid "6e6bf69e-ee2b-48d6-b006-63b3b9d2443f")
-	)	(wire
+	)
+	(wire
 		(pts
-			(xy 53.34 101.6) (xy 63.5 101.6)
+			(xy 59.69 96.52) (xy 59.69 99.06)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "78591c86-ee02-4f77-a7d3-5b0a8ad0181c")
+		(uuid "a2b20001-0000-0001-0000-000000000001")
+	)
+	(wire
+		(pts
+			(xy 59.69 106.68) (xy 59.69 109.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a2b20001-0000-0001-0000-000000000002")
 	)
 	(wire
 		(pts
@@ -3446,7 +3493,8 @@
 			(type default)
 		)
 		(uuid "8d5062fa-a019-446d-9fcb-dfff934fd308")
-	)	(wire
+	)
+	(wire
 		(pts
 			(xy 226.06 92.71) (xy 215.9 92.71)
 		)
@@ -3485,6 +3533,86 @@
 			(type default)
 		)
 		(uuid "a06c2ab8-d0a6-4b43-acef-caf42f92f604")
+	)
+	(wire
+		(pts
+			(xy 62.23 160.02) (xy 72.39 160.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000001")
+	)
+	(wire
+		(pts
+			(xy 62.23 167.64) (xy 72.39 167.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000002")
+	)
+	(wire
+		(pts
+			(xy 233.68 170.18) (xy 243.84 170.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000005")
+	)
+	(wire
+		(pts
+			(xy 233.68 172.72) (xy 243.84 172.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000006")
+	)
+	(wire
+		(pts
+			(xy 233.68 175.26) (xy 233.68 177.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000010")
+	)
+	(wire
+		(pts
+			(xy 213.36 167.64) (xy 213.36 170.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000012")
+	)
+	(wire
+		(pts
+			(xy 213.36 167.64) (xy 203.2 167.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000013")
+	)
+	(wire
+		(pts
+			(xy 213.36 177.8) (xy 203.2 177.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000014")
 	)
 	(wire
 		(pts
@@ -3565,15 +3693,26 @@
 			(type default)
 		)
 		(uuid "bfd8659f-eac5-4cfb-9d34-90b8ecd905d2")
-	)	(wire
+	)
+	(wire
 		(pts
-			(xy 53.34 76.2) (xy 63.5 76.2)
+			(xy 59.69 40.64) (xy 59.69 43.18)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "cd6eee7c-8461-4cb2-9375-d7df212c5ba1")
+		(uuid "a2b10001-0000-0001-0000-000000000001")
+	)
+	(wire
+		(pts
+			(xy 59.69 50.80) (xy 59.69 53.34)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a2b10001-0000-0001-0000-000000000002")
 	)
 	(wire
 		(pts
@@ -3684,7 +3823,8 @@
 			(type default)
 		)
 		(uuid "ec744f26-b346-4d1c-8996-d788a013e180")
-	)	(wire
+	)
+	(wire
 		(pts
 			(xy 140.97 149.86) (xy 130.81 149.86)
 		)
@@ -3903,7 +4043,8 @@
 			(justify right)
 		)
 		(uuid "61941e15-187f-4d35-af78-44c68c55c8da")
-	)	(label "U5_28BYJ_A"
+	)
+	(label "U5_28BYJ_A"
 		(at 171.45 147.32 0)
 		(effects
 			(font
@@ -4023,6 +4164,66 @@
 		)
 		(uuid "9f446976-103e-42ea-aa15-e46ac0f0606f")
 	)
+	(label "I2C_SDA"
+		(at 72.39 160.02 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000003")
+	)
+	(label "I2C_SCL"
+		(at 72.39 167.64 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000004")
+	)
+	(label "I2C_SCL"
+		(at 243.84 170.18 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000007")
+	)
+	(label "I2C_SDA"
+		(at 243.84 172.72 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000008")
+	)
+	(label "INA_IN+"
+		(at 203.2 167.64 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000016")
+	)
+	(label "INA_IN-"
+		(at 203.2 177.8 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "a1b00001-0000-0000-0000-000000000017")
+	)
 	(label "SPI_SCK"
 		(at 72.39 180.34 0)
 		(effects
@@ -4032,6 +4233,26 @@
 			(justify left)
 		)
 		(uuid "a1c5b6b8-7e35-4a1e-92d4-877e93f16b60")
+	)
+	(label "DHT_CEILING"
+		(at 59.69 45.72 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "a2b00001-0000-0000-0000-000000000031")
+	)
+	(label "DHT_BENCH"
+		(at 59.69 101.6 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "a2b00002-0000-0000-0000-000000000031")
 	)
 	(label "REFIN+"
 		(at 175.26 76.2 0)
@@ -4062,7 +4283,8 @@
 			(justify left)
 		)
 		(uuid "b0071b0a-ead4-49d1-92a6-d1cd1655f4d4")
-	)	(label "OUTFLOW_I1"
+	)
+	(label "OUTFLOW_I1"
 		(at 130.81 147.32 180)
 		(effects
 			(font
@@ -4191,7 +4413,8 @@
 			(justify left)
 		)
 		(uuid "f94db467-2519-433e-8d94-865934c4fc2d")
-	)	(symbol
+	)
+	(symbol
 		(lib_id "power:+3V3")
 		(at 152.4 63.5 270)
 		(unit 1)
@@ -4807,7 +5030,8 @@
 				)
 			)
 		)
-	)	(symbol
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 46.99 220.98 90)
 		(unit 1)
@@ -5050,7 +5274,8 @@
 				)
 			)
 		)
-	)	(symbol
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 152.4 226.06 90)
 		(unit 1)
@@ -5633,397 +5858,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Transistor_Array:ULN2003")
-		(at 151.13 152.4 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "aada102c-ff1b-40d3-bb43-4dd68d87e490")
-		(property "Reference" "U5"
-			(at 144.13 137.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "ULN2003A"
-			(at 159.13 137.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Package_DIP:DIP-16_W7.62mm"
-			(at 151.13 152.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 151.13 152.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 151.13 152.4 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "97b1ad14-e414-4c55-966c-c74da1fca2bf")
-		)
-		(pin "2"
-			(uuid "d3ec16b0-67b0-4d77-aa60-771a5afbfbfa")
-		)
-		(pin "3"
-			(uuid "2040324b-6ab3-43b6-81ac-4f87144be533")
-		)
-		(pin "4"
-			(uuid "73bf3fe2-0f4f-47ec-98af-9bae0514ead4")
-		)
-		(pin "5"
-			(uuid "733e1391-bc62-441e-9b40-1e37ea5f7256")
-		)
-		(pin "6"
-			(uuid "ea614b26-c9db-491f-a7de-4574b75223fc")
-		)
-		(pin "7"
-			(uuid "9f1b5422-b055-4641-bde2-0580aa5b5cb5")
-		)
-		(pin "8"
-			(uuid "2b075b46-6f7a-4f82-b76d-366538df54a7")
-		)
-		(pin "9"
-			(uuid "57fe66ae-b97b-456a-bf0e-68df0f26d2da")
-		)
-		(pin "10"
-			(uuid "97723259-9919-44d7-b146-fdd158b0ec6a")
-		)
-		(pin "11"
-			(uuid "b752518a-c166-420a-8fc8-88aea06a840e")
-		)
-		(pin "12"
-			(uuid "f5b39ad3-1a3c-467a-83d0-c0318f5a7c32")
-		)
-		(pin "13"
-			(uuid "15a8a27f-8e42-4e1c-9fc2-f21b12441742")
-		)
-		(pin "14"
-			(uuid "1240555e-1ccc-4b04-bce7-b5f4bb91517b")
-		)
-		(pin "15"
-			(uuid "37fb0255-e6ab-4354-96e5-c6fee2120156")
-		)
-		(pin "16"
-			(uuid "c7b9729b-e4f7-4ff5-87a9-f5467f5f65d5")
-		)
-		(instances
-			(project "SaunaStatus"
-				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
-					(reference "U5")
-					(unit 1)
-				)
-			)
-		)
-	)	(symbol
-		(lib_id "power:GND")
-		(at 151.13 172.72 90)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "d609561f-3eda-4992-babf-e4e8d086da9d")
-		(property "Reference" "#PWR012"
-			(at 151.13 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 151.13 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 151.13 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 151.13 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 151.13 172.72 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "10a8c70b-1090-48f0-ad4b-750ffe07a809")
-		)
-		(instances
-			(project "SaunaStatus"
-				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
-					(reference "#PWR012")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:PWR_FLAG")
-		(at 46.99 139.7 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "ece9264e-33c9-442a-8011-1f6e17356b24")
-		(property "Reference" "#FLG001"
-			(at 46.99 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "PWR_FLAG"
-			(at 46.99 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 46.99 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 46.99 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 46.99 139.7 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "0bddde67-6cc9-494f-9f55-a516b228f1ea")
-		)
-		(instances
-			(project "SaunaStatus"
-				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
-					(reference "#FLG001")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 62.23 160.02) (xy 72.39 160.02)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000001")
-	)
-	(wire
-		(pts
-			(xy 62.23 167.64) (xy 72.39 167.64)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000002")
-	)
-	(label "I2C_SDA"
-		(at 72.39 160.02 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000003")
-	)
-	(label "I2C_SCL"
-		(at 72.39 167.64 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000004")
-	)
-	(wire
-		(pts
-			(xy 233.68 170.18) (xy 243.84 170.18)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000005")
-	)
-	(wire
-		(pts
-			(xy 233.68 172.72) (xy 243.84 172.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000006")
-	)
-	(label "I2C_SCL"
-		(at 243.84 170.18 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000007")
-	)
-	(label "I2C_SDA"
-		(at 243.84 172.72 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000008")
-	)
-	(no_connect
-		(at 233.68 167.64)
-		(uuid "a1b00001-0000-0000-0000-000000000009")
-	)
-	(wire
-		(pts
-			(xy 233.68 175.26) (xy 233.68 182.88)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000010")
-	)
-	(junction
-		(at 233.68 177.8)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "a1b00001-0000-0000-0000-000000000011")
-	)
-	(wire
-		(pts
-			(xy 213.36 167.64) (xy 213.36 170.18)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000012")
-	)
-	(wire
-		(pts
-			(xy 213.36 167.64) (xy 203.2 167.64)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000013")
-	)
-	(wire
-		(pts
-			(xy 213.36 177.8) (xy 203.2 177.8)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000014")
-	)
-	(junction
-		(at 213.36 167.64)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "a1b00001-0000-0000-0000-000000000015")
-	)
-	(label "INA_IN+"
-		(at 203.2 167.64 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000016")
-	)
-	(label "INA_IN-"
-		(at 203.2 177.8 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "a1b00001-0000-0000-0000-000000000017")
-	)
-	(symbol
 		(lib_id "power:+3V3")
 		(at 223.52 162.56 270)
 		(unit 1)
@@ -6217,7 +6051,7 @@
 	)
 	(symbol
 		(lib_id "Connector_Generic:Conn_01x04")
-		(at 45.72 76.2 0)
+		(at 64.77 45.72 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6225,7 +6059,7 @@
 		(dnp no)
 		(uuid "a2b00001-0000-0000-0000-000000000001")
 		(property "Reference" "J4"
-			(at 41.72 68.2 0)
+			(at 60.77 37.72 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6233,7 +6067,7 @@
 			)
 		)
 		(property "Value" "DHT21/AM2301 Ceiling"
-			(at 56.72 68.2 0)
+			(at 75.77 37.72 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6241,7 +6075,7 @@
 			)
 		)
 		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical"
-			(at 45.72 76.2 0)
+			(at 64.77 45.72 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6250,7 +6084,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 45.72 76.2 0)
+			(at 64.77 45.72 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6259,7 +6093,7 @@
 			)
 		)
 		(property "Description" "DHT21/AM2301 external sensor connector — Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND"
-			(at 45.72 76.2 0)
+			(at 64.77 45.72 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6288,32 +6122,33 @@
 		)
 	)
 	(symbol
-		(lib_id "Connector_Generic:Conn_01x04")
-		(at 45.72 101.6 0)
+		(lib_id "power:+3V3")
+		(at 59.69 40.64 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a2b00002-0000-0000-0000-000000000001")
-		(property "Reference" "J5"
-			(at 41.72 93.6 0)
+		(uuid "a2b00001-0000-0000-0000-000000000041")
+		(property "Reference" "#PWR018"
+			(at 59.69 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 59.69 40.64 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "DHT21/AM2301 Bench"
-			(at 56.72 93.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical"
-			(at 45.72 101.6 0)
+		(property "Footprint" ""
+			(at 59.69 40.64 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6322,7 +6157,134 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 45.72 101.6 0)
+			(at 59.69 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 59.69 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "a2b00001-0000-0000-0000-000000000042")
+		)
+		(instances
+			(project "SaunaStatus"
+				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
+					(reference "#PWR018")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 59.69 53.34 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "a2b00001-0000-0000-0000-000000000043")
+		(property "Reference" "#PWR019"
+			(at 59.69 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 59.69 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 59.69 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 59.69 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 59.69 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "a2b00001-0000-0000-0000-000000000044")
+		)
+		(instances
+			(project "SaunaStatus"
+				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
+					(reference "#PWR019")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector_Generic:Conn_01x04")
+		(at 64.77 101.6 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "a2b00002-0000-0000-0000-000000000001")
+		(property "Reference" "J5"
+			(at 60.77 93.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "DHT21/AM2301 Bench"
+			(at 75.77 93.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical"
+			(at 64.77 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 64.77 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6331,7 +6293,7 @@
 			)
 		)
 		(property "Description" "DHT21/AM2301 external sensor connector — Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND"
-			(at 45.72 101.6 0)
+			(at 64.77 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6359,165 +6321,9 @@
 			)
 		)
 	)
-	(no_connect
-		(at 40.64 78.74)
-		(uuid "a2b00001-0000-0000-0000-000000000021")
-	)
-	(no_connect
-		(at 40.64 104.14)
-		(uuid "a2b00002-0000-0000-0000-000000000021")
-	)
-	(label "DHT_CEILING"
-		(at 40.64 76.2 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "a2b00001-0000-0000-0000-000000000031")
-	)
-	(label "DHT_BENCH"
-		(at 40.64 101.6 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "a2b00002-0000-0000-0000-000000000031")
-	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 40.64 71.12 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a2b00001-0000-0000-0000-000000000041")
-		(property "Reference" "#PWR018"
-			(at 40.64 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3V3"
-			(at 40.64 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 40.64 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 40.64 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 40.64 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "a2b00001-0000-0000-0000-000000000042")
-		)
-		(instances
-			(project "SaunaStatus"
-				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
-					(reference "#PWR018")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 40.64 83.82 90)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a2b00001-0000-0000-0000-000000000043")
-		(property "Reference" "#PWR019"
-			(at 40.64 83.82 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 40.64 83.82 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 40.64 83.82 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 40.64 83.82 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 40.64 83.82 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(pin "1"
-			(uuid "a2b00001-0000-0000-0000-000000000044")
-		)
-		(instances
-			(project "SaunaStatus"
-				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
-					(reference "#PWR019")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3V3")
-		(at 40.64 96.52 270)
+		(at 59.69 96.52 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6525,7 +6331,7 @@
 		(dnp no)
 		(uuid "a2b00002-0000-0000-0000-000000000041")
 		(property "Reference" "#PWR020"
-			(at 40.64 96.52 0)
+			(at 59.69 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6534,7 +6340,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 40.64 96.52 0)
+			(at 59.69 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6542,7 +6348,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 40.64 96.52 0)
+			(at 59.69 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6551,7 +6357,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 40.64 96.52 0)
+			(at 59.69 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6560,7 +6366,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 40.64 96.52 0)
+			(at 59.69 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6581,7 +6387,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 40.64 109.22 90)
+		(at 59.69 109.22 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6589,7 +6395,7 @@
 		(dnp no)
 		(uuid "a2b00002-0000-0000-0000-000000000043")
 		(property "Reference" "#PWR021"
-			(at 40.64 109.22 0)
+			(at 59.69 109.22 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6598,7 +6404,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 40.64 109.22 0)
+			(at 59.69 109.22 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6606,7 +6412,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 40.64 109.22 0)
+			(at 59.69 109.22 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6615,7 +6421,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 40.64 109.22 0)
+			(at 59.69 109.22 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6624,7 +6430,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 40.64 109.22 0)
+			(at 59.69 109.22 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6642,6 +6448,262 @@
 				)
 			)
 		)
+	)
+	(symbol
+		(lib_id "Transistor_Array:ULN2003")
+		(at 151.13 152.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "aada102c-ff1b-40d3-bb43-4dd68d87e490")
+		(property "Reference" "U5"
+			(at 144.13 137.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "ULN2003A"
+			(at 159.13 137.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_DIP:DIP-16_W7.62mm"
+			(at 151.13 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 151.13 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 151.13 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "97b1ad14-e414-4c55-966c-c74da1fca2bf")
+		)
+		(pin "2"
+			(uuid "d3ec16b0-67b0-4d77-aa60-771a5afbfbfa")
+		)
+		(pin "3"
+			(uuid "2040324b-6ab3-43b6-81ac-4f87144be533")
+		)
+		(pin "4"
+			(uuid "73bf3fe2-0f4f-47ec-98af-9bae0514ead4")
+		)
+		(pin "5"
+			(uuid "733e1391-bc62-441e-9b40-1e37ea5f7256")
+		)
+		(pin "6"
+			(uuid "ea614b26-c9db-491f-a7de-4574b75223fc")
+		)
+		(pin "7"
+			(uuid "9f1b5422-b055-4641-bde2-0580aa5b5cb5")
+		)
+		(pin "8"
+			(uuid "2b075b46-6f7a-4f82-b76d-366538df54a7")
+		)
+		(pin "9"
+			(uuid "57fe66ae-b97b-456a-bf0e-68df0f26d2da")
+		)
+		(pin "10"
+			(uuid "97723259-9919-44d7-b146-fdd158b0ec6a")
+		)
+		(pin "11"
+			(uuid "b752518a-c166-420a-8fc8-88aea06a840e")
+		)
+		(pin "12"
+			(uuid "f5b39ad3-1a3c-467a-83d0-c0318f5a7c32")
+		)
+		(pin "13"
+			(uuid "15a8a27f-8e42-4e1c-9fc2-f21b12441742")
+		)
+		(pin "14"
+			(uuid "1240555e-1ccc-4b04-bce7-b5f4bb91517b")
+		)
+		(pin "15"
+			(uuid "37fb0255-e6ab-4354-96e5-c6fee2120156")
+		)
+		(pin "16"
+			(uuid "c7b9729b-e4f7-4ff5-87a9-f5467f5f65d5")
+		)
+		(instances
+			(project "SaunaStatus"
+				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
+					(reference "U5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 151.13 172.72 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "d609561f-3eda-4992-babf-e4e8d086da9d")
+		(property "Reference" "#PWR012"
+			(at 151.13 172.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 151.13 172.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 151.13 172.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 151.13 172.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 151.13 172.72 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "10a8c70b-1090-48f0-ad4b-750ffe07a809")
+		)
+		(instances
+			(project "SaunaStatus"
+				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
+					(reference "#PWR012")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 46.99 139.7 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "ece9264e-33c9-442a-8011-1f6e17356b24")
+		(property "Reference" "#FLG001"
+			(at 46.99 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "PWR_FLAG"
+			(at 46.99 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 46.99 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 46.99 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 46.99 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "0bddde67-6cc9-494f-9f55-a516b228f1ea")
+		)
+		(instances
+			(project "SaunaStatus"
+				(path "/d19a36c6-5583-4c95-873e-3cdaa80a72d5"
+					(reference "#FLG001")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 162.56 200.66) (xy 182.88 200.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "u6j30001-0001-0001-0001-000000000001")
+	)
+	(wire
+		(pts
+			(xy 162.56 203.20) (xy 182.88 203.20)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "u6j30001-0001-0001-0001-000000000002")
 	)
 	(sheet_instances
 		(path "/"
