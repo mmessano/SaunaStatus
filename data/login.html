@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sauna — Login</title>
+  <style>
+    body { font-family: Helvetica, sans-serif; background: #1a1a2e; color: #eee;
+           margin: 0; display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; }
+    .box { background: #16213e; border-radius: 12px; padding: 36px 40px; width: 100%;
+           max-width: 340px; box-sizing: border-box; }
+    h1 { color: #e94560; margin: 0 0 24px; font-size: 1.4em; text-align: center; }
+    label { display: block; margin-bottom: 6px; font-size: 0.85em; color: #a0aec0; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px;
+            background: #0f3460; color: #eee; border: 1px solid #2d3748;
+            border-radius: 6px; font-size: 1em; margin-bottom: 16px; }
+    button { width: 100%; padding: 12px; background: #e94560; color: #fff;
+             border: none; border-radius: 8px; font-size: 1em; cursor: pointer; }
+    button:active { opacity: 0.8; }
+    #err { margin-top: 14px; font-size: 0.85em; color: #fc8181;
+           text-align: center; min-height: 1.2em; }
+  </style>
+</head><body>
+  <div class="box">
+    <h1>Sauna Login</h1>
+    <label for="u">Username</label>
+    <input id="u" type="text" autocomplete="username" autofocus>
+    <label for="p">Password</label>
+    <input id="p" type="password" autocomplete="current-password">
+    <button onclick="doLogin()">Sign In</button>
+    <div id="err"></div>
+  </div>
+  <script>
+    // If already authenticated, skip to dashboard
+    (function() {
+      var tok = sessionStorage.getItem('sauna_token');
+      if (!tok) return;
+      fetch('/auth/status', { headers: { 'Authorization': 'Bearer ' + tok } })
+        .then(function(r) { if (r.ok) window.location.href = '/'; });
+    })();
+
+    function doLogin() {
+      var u = document.getElementById('u').value.trim();
+      var p = document.getElementById('p').value;
+      var errEl = document.getElementById('err');
+      errEl.innerText = '';
+      if (!u || !p) { errEl.innerText = 'Enter username and password.'; return; }
+      fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      }).then(function(r) {
+        if (r.ok) return r.json().then(function(d) {
+          sessionStorage.setItem('sauna_token', d.token);
+          window.location.href = '/';
+        });
+        errEl.innerText = 'Invalid username or password.';
+      }).catch(function() {
+        errEl.innerText = 'Could not reach device.';
+      });
+    }
+
+    document.getElementById('p').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
+    });
+  </script>
+</body></html>
