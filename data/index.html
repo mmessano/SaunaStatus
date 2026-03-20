@@ -25,8 +25,12 @@
     #envBanner { width: 100%; box-sizing: border-box; display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center; gap: 20px; margin-top: 20px; }
     .banner-item { text-align: center; }
     #saunaStatus { font-size: 2.4em; font-weight: bold; color: #718096; margin-top: 4px; }
+    #authBar { position: fixed; top: 10px; right: 16px; font-size: 0.8em; color: #a0aec0; z-index: 100; }
+    #authBar button { padding: 4px 14px; background: #4a5568; color: #eee; border: none;
+                      border-radius: 6px; cursor: pointer; font-size: 0.85em; margin-left: 8px; }
   </style>
 </head><body>
+  <div id="authBar"><span id="authUser"></span><button onclick="logout()">Logout</button></div>
   <h1>Sauna Status</h1>
   <div id="envBanner">
     <div class="banner-item">
@@ -183,6 +187,41 @@
     <div id="resetStatus"></div>
   </div>
   <script>
+    // ── Auth ───────────────────────────────────────────────────────────────
+    function authFetch(url, options) {
+      options = options || {};
+      var tok = sessionStorage.getItem('sauna_token');
+      options.headers = Object.assign({}, options.headers,
+                          { 'Authorization': 'Bearer ' + tok });
+      return fetch(url, options).then(function(r) {
+        if (r.status === 401) {
+          sessionStorage.removeItem('sauna_token');
+          window.location.href = '/auth/login';
+        }
+        return r;
+      });
+    }
+
+    function logout() {
+      authFetch('/auth/logout', { method: 'POST' }).finally(function() {
+        sessionStorage.removeItem('sauna_token');
+        window.location.href = '/auth/login';
+      });
+    }
+
+    // On load: verify token; redirect to login if invalid or missing
+    (function() {
+      var tok = sessionStorage.getItem('sauna_token');
+      if (!tok) { window.location.href = '/auth/login'; return; }
+      fetch('/auth/status', { headers: { 'Authorization': 'Bearer ' + tok } })
+        .then(function(r) {
+          if (!r.ok) { window.location.href = '/auth/login'; return; }
+          return r.json();
+        }).then(function(d) {
+          if (d) document.getElementById('authUser').innerText = d.username;
+        });
+    })();
+
     var ws;
     function connect() {
       ws = new WebSocket('ws://' + location.hostname + ':81/');
@@ -283,7 +322,7 @@
       var el = document.getElementById('resetStatus');
       el.style.color = '#718096';
       el.innerText = 'Deleting ' + name + '...';
-      fetch('/delete/' + path).then(function(r) { return r.text(); }).then(function(t) {
+      authFetch('/delete/' + path).then(function(r) { return r.text(); }).then(function(t) {
         el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
         el.innerText = t === 'OK' ? name + ' cleared' : 'Error: ' + t;
       }).catch(function() {
@@ -295,7 +334,7 @@
       var el = document.getElementById('logStatus');
       el.style.color = '#718096';
       el.innerText = 'Logging...';
-      fetch('/log').then(function(r) { return r.text(); }).then(function(t) {
+      authFetch('/log').then(function(r) { return r.text(); }).then(function(t) {
         el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
         el.innerText = t === 'OK' ? 'Logged successfully' : 'Error: ' + t;
       }).catch(function() {
@@ -305,7 +344,7 @@
     }
     function motorCmd(motor, cmd) {
       var steps = parseInt(document.getElementById(motor === 'outflow' ? 'oSteps' : 'iSteps').value) || 64;
-      fetch('/motor?motor=' + motor + '&cmd=' + cmd + '&steps=' + steps)
+      authFetch('/motor?motor=' + motor + '&cmd=' + cmd + '&steps=' + steps)
         .then(function(r){ return r.text(); })
         .then(function(t){ if (t !== 'OK') alert('Motor error: ' + t); });
     }
@@ -317,7 +356,7 @@
     function togglePid(which) {
       var id = which === 'ceiling' ? 'cPidBtn' : 'bPidBtn';
       var isOn = document.getElementById(id).innerText === 'ON';
-      fetch('/pid?' + which + '=' + (isOn ? '0' : '1'))
+      authFetch('/pid?' + which + '=' + (isOn ? '0' : '1'))
         .then(function(r){ return r.text(); })
         .then(function(t){ if (t === 'OK') setPidBtn(id, !isOn); });
     }
@@ -326,7 +365,7 @@
       var b = document.getElementById('bspInput').value;
       var el = document.getElementById('spStatus');
       el.style.color = '#718096'; el.innerText = 'Setting\u2026';
-      fetch('/setpoint?ceiling=' + encodeURIComponent(c) + '&bench=' + encodeURIComponent(b))
+      authFetch('/setpoint?ceiling=' + encodeURIComponent(c) + '&bench=' + encodeURIComponent(b))
         .then(function(r){ return r.text(); })
         .then(function(t){
           el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
@@ -407,5 +446,56 @@
     }
     setTimeout(loadHistory, 1500);
     setInterval(loadHistory, 300000);
+
+    function loadUsers() {
+      authFetch('/users').then(function(r){ return r.json(); }).then(function(list) {
+        var el = document.getElementById('usersList');
+        if (!list || !list.length) { el.innerText = 'No users found.'; return; }
+        el.innerHTML = list.map(function(u) {
+          return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2d3748;">' +
+            '<span>' + u.username + ' <small style="color:#718096;">(' + u.role + ')</small></span>' +
+            (u.protected ? '' :
+              '<button onclick="deleteUser(\'' + u.username + '\')" style="background:#e94560;color:#fff;border:none;border-radius:4px;padding:2px 10px;cursor:pointer;">Delete</button>') +
+          '</div>';
+        }).join('');
+      });
+    }
+
+    function addUser() {
+      var u = document.getElementById('newUser').value.trim();
+      var p = document.getElementById('newPass').value;
+      var st = document.getElementById('userStatus');
+      st.innerText = '';
+      if (!u || p.length < 8) { st.style.color='#fc8181'; st.innerText='Username required; password \u22658 chars.'; return; }
+      authFetch('/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p, role: 'admin' })
+      }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.ok) { st.style.color='#48bb78'; st.innerText='User created.'; loadUsers(); }
+        else { st.style.color='#fc8181'; st.innerText='Error: ' + (d.error || 'unknown'); }
+      });
+    }
+
+    function deleteUser(username) {
+      if (!confirm('Delete user "' + username + '"?')) return;
+      authFetch('/users?username=' + encodeURIComponent(username), { method: 'DELETE' })
+        .then(function(){ loadUsers(); });
+    }
+
+    loadUsers();
   </script>
+  <div id="usersCard" class="card" style="width:100%;max-width:480px;">
+    <h2>Users</h2>
+    <div id="usersList" style="margin-bottom:16px;font-size:0.9em;"></div>
+    <details>
+      <summary style="cursor:pointer;color:#a0aec0;font-size:0.85em;">Add user</summary>
+      <div style="margin-top:10px;">
+        <input id="newUser" placeholder="Username" style="width:45%;margin-right:4px;">
+        <input id="newPass" type="password" placeholder="Password (&#x2265;8 chars)" style="width:45%;">
+        <button class="btn" style="margin-top:8px;" onclick="addUser()">Create</button>
+        <div id="userStatus" style="margin-top:8px;font-size:0.85em;color:#718096;min-height:1.2em;"></div>
+      </div>
+    </details>
+  </div>
 </body></html>
