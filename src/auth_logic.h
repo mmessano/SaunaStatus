@@ -228,3 +228,117 @@ inline void authInvalidateToken(AuthSession sessions[], int max, const char *tok
         }
     }
 }
+
+// ── User store operations ─────────────────────────────────────────────────
+inline const AuthUser *authFindUser(const AuthUserStore *store, const char *username) {
+    for (int i = 0; i < store->count; i++) {
+        if (store->users[i].active &&
+            strncmp(store->users[i].name, username, 32) == 0)
+            return &store->users[i];
+    }
+    return nullptr;
+}
+
+inline AuthUserResult authAddUser(AuthUserStore *store,
+                                   const char *username,
+                                   const char *password,
+                                   const char *role,
+                                   AuthRandFn rand_fn,
+                                   AuthHashFn hash_fn) {
+    if (!authPasswordLengthOk(password)) return AUTH_USER_BAD_PASS;
+    if (store->count >= AUTH_MAX_USERS)  return AUTH_USER_FULL;
+    if (authFindUser(store, username))   return AUTH_USER_EXISTS;
+    AuthUser &u = store->users[store->count];
+    memset(&u, 0, sizeof(AuthUser));
+    strncpy(u.name, username, 32); u.name[32] = '\0';
+    strncpy(u.role, role,     16); u.role[16] = '\0';
+    authGenerateSalt(u.salt, rand_fn);
+    authHashPassword(password, u.salt, u.hash, hash_fn);
+    u.active = true;
+    store->count++;
+    return AUTH_USER_OK;
+}
+
+// emergency_slot: index that cannot be deleted (pass 0 in production, 99 in tests to skip)
+inline AuthUserResult authDeleteUser(AuthUserStore *store,
+                                      const char *username,
+                                      int emergency_slot) {
+    for (int i = 0; i < store->count; i++) {
+        if (!store->users[i].active) continue;
+        if (strncmp(store->users[i].name, username, 32) != 0) continue;
+        if (i == emergency_slot) return AUTH_USER_PROTECTED;
+        // Shift remaining users down
+        for (int j = i; j < store->count - 1; j++)
+            store->users[j] = store->users[j + 1];
+        memset(&store->users[store->count - 1], 0, sizeof(AuthUser));
+        store->count--;
+        return AUTH_USER_OK;
+    }
+    return AUTH_USER_NOT_FOUND;
+}
+
+inline AuthUserResult authChangePassword(AuthUserStore *store,
+                                          const char *username,
+                                          const char *new_password,
+                                          AuthRandFn rand_fn,
+                                          AuthHashFn hash_fn) {
+    if (!authPasswordLengthOk(new_password)) return AUTH_USER_BAD_PASS;
+    for (int i = 0; i < store->count; i++) {
+        if (!store->users[i].active) continue;
+        if (strncmp(store->users[i].name, username, 32) != 0) continue;
+        authGenerateSalt(store->users[i].salt, rand_fn);
+        authHashPassword(new_password, store->users[i].salt,
+                         store->users[i].hash, hash_fn);
+        return AUTH_USER_OK;
+    }
+    return AUTH_USER_NOT_FOUND;
+}
+
+// ── Login fallback orchestration ──────────────────────────────────────────
+inline LoginOutcome authAttemptLogin(const char *username,
+                                      const char *password,
+                                      bool adapter_configured,
+                                      AdapterFn adapter_fn,
+                                      void *adapter_ctx,
+                                      const AuthUserStore *store,
+                                      AuthHashFn hash_fn) {
+    LoginOutcome out;
+    memset(&out, 0, sizeof(out));
+    if (adapter_configured && adapter_fn) {
+        AdapterResult ar = adapter_fn(username, password, out.role, adapter_ctx);
+        if (ar == ADAPTER_OK)       { out.result = LOGIN_OK;       out.source = AUTH_SRC_ADAPTER; return out; }
+        if (ar == ADAPTER_REJECTED) { out.result = LOGIN_REJECTED; out.source = AUTH_SRC_ADAPTER; return out; }
+        // ADAPTER_ERROR — fall through to NVS
+    }
+    const AuthUser *u = authFindUser(store, username);
+    if (u && authVerifyPassword(password, u->salt, u->hash, hash_fn)) {
+        out.result = LOGIN_OK;
+        out.source = AUTH_SRC_NVS;
+        strncpy(out.role, u->role, 16); out.role[16] = '\0';
+    } else {
+        out.result = LOGIN_REJECTED;
+        out.source = AUTH_SRC_NVS;
+    }
+    return out;
+}
+
+// ── Log event struct (populated portably, written to InfluxDB by auth.h) ──
+struct AuthLogEvent {
+    char event[32];
+    char username[33];
+    char client_ip[40];
+    char auth_source[16];
+};
+
+inline AuthLogEvent authBuildLogEvent(const char *event,
+                                       const char *username,
+                                       const char *client_ip,
+                                       const char *auth_source) {
+    AuthLogEvent ev;
+    memset(&ev, 0, sizeof(ev));
+    strncpy(ev.event,       event,       31); ev.event[31]       = '\0';
+    strncpy(ev.username,    username,    32); ev.username[32]    = '\0';
+    strncpy(ev.client_ip,   client_ip,   39); ev.client_ip[39]   = '\0';
+    strncpy(ev.auth_source, auth_source, 15); ev.auth_source[15] = '\0';
+    return ev;
+}

@@ -251,6 +251,182 @@ void test_password_above_max_len_rejected(void) {
     TEST_ASSERT_FALSE(authPasswordLengthOk(pass));
 }
 
+// ── User store ────────────────────────────────────────────────────────────
+static AuthUserStore g_store;
+
+static void clearStore(void) {
+    memset(&g_store, 0, sizeof(g_store));
+}
+
+void test_add_user_and_find(void) {
+    clearStore();
+    g_randCounter = 0;
+    AuthUserResult r = authAddUser(&g_store, "alice", "password1", "admin",
+                                    testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_USER_OK, r);
+    TEST_ASSERT_EQUAL(1, g_store.count);
+    const AuthUser *u = authFindUser(&g_store, "alice");
+    TEST_ASSERT_NOT_NULL(u);
+    TEST_ASSERT_EQUAL_STRING("alice", u->name);
+}
+
+void test_max_users_enforced(void) {
+    clearStore();
+    g_randCounter = 0;
+    for (int i = 0; i < AUTH_MAX_USERS; i++) {
+        char name[8]; name[0]='u'; name[1]='0'+i; name[2]='\0';
+        AuthUserResult r = authAddUser(&g_store, name, "password1", "admin",
+                                        testRandFn, testHashFn);
+        TEST_ASSERT_EQUAL(AUTH_USER_OK, r);
+    }
+    // 6th user should fail
+    AuthUserResult r = authAddUser(&g_store, "overflow", "password1", "admin",
+                                    testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_USER_FULL, r);
+    TEST_ASSERT_EQUAL(AUTH_MAX_USERS, g_store.count);
+}
+
+void test_delete_user(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "alice", "password1", "admin", testRandFn, testHashFn);
+    // emergency_slot = 99 (no slot 0 protection in this test)
+    AuthUserResult r = authDeleteUser(&g_store, "alice", 99);
+    TEST_ASSERT_EQUAL(AUTH_USER_OK, r);
+    TEST_ASSERT_NULL(authFindUser(&g_store, "alice"));
+}
+
+void test_slot0_delete_rejected(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "admin", "password1", "admin", testRandFn, testHashFn);
+    // emergency_slot = 0 → delete attempt returns AUTH_USER_PROTECTED
+    AuthUserResult r = authDeleteUser(&g_store, "admin", 0);
+    TEST_ASSERT_EQUAL(AUTH_USER_PROTECTED, r);
+    TEST_ASSERT_NOT_NULL(authFindUser(&g_store, "admin"));
+}
+
+void test_slot0_password_change_permitted(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "admin", "oldpassword", "admin", testRandFn, testHashFn);
+    AuthUserResult r = authChangePassword(&g_store, "admin", "newpassword12",
+                                           testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_USER_OK, r);
+    const AuthUser *u = authFindUser(&g_store, "admin");
+    TEST_ASSERT_TRUE(authVerifyPassword("newpassword12", u->salt, u->hash, testHashFn));
+    TEST_ASSERT_FALSE(authVerifyPassword("oldpassword",  u->salt, u->hash, testHashFn));
+}
+
+void test_delete_non_slot0_preserves_slot0_protection(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "admin",  "password1", "admin", testRandFn, testHashFn);
+    authAddUser(&g_store, "bob",    "password1", "admin", testRandFn, testHashFn);
+    authAddUser(&g_store, "carol",  "password1", "admin", testRandFn, testHashFn);
+    // Delete bob (slot 1) — carol shifts to slot 1, count becomes 2
+    TEST_ASSERT_EQUAL(AUTH_USER_OK, authDeleteUser(&g_store, "bob", 0));
+    TEST_ASSERT_EQUAL(2, g_store.count);
+    // Slot 0 must still be "admin" and protected
+    TEST_ASSERT_EQUAL_STRING("admin", g_store.users[0].name);
+    TEST_ASSERT_EQUAL(AUTH_USER_PROTECTED, authDeleteUser(&g_store, "admin", 0));
+    // Carol is now at slot 1 and deletable
+    TEST_ASSERT_EQUAL(AUTH_USER_OK, authDeleteUser(&g_store, "carol", 0));
+}
+
+void test_password_below_min_rejected_on_add(void) {
+    clearStore();
+    g_randCounter = 0;
+    AuthUserResult r = authAddUser(&g_store, "alice", "short", "admin",
+                                    testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_USER_BAD_PASS, r);
+    TEST_ASSERT_EQUAL(0, g_store.count);
+}
+
+// ── Login fallback logic ──────────────────────────────────────────────────
+static int g_adapterCallCount;
+static bool g_adapterShouldSucceed;
+static bool g_adapterShouldError;
+
+static AdapterResult mockAdapter(const char *username,
+                                  const char *password,
+                                  char *out_role, void *ctx) {
+    g_adapterCallCount++;
+    if (g_adapterShouldError)   return ADAPTER_ERROR;
+    if (g_adapterShouldSucceed) { strncpy(out_role, "admin", 16); return ADAPTER_OK; }
+    return ADAPTER_REJECTED;
+}
+
+void test_adapter_success_issues_token(void) {
+    clearStore();
+    g_adapterCallCount = 0; g_adapterShouldSucceed = true; g_adapterShouldError = false;
+    LoginOutcome out = authAttemptLogin("alice", "any", true,
+                                        mockAdapter, nullptr,
+                                        &g_store, testHashFn);
+    TEST_ASSERT_EQUAL(LOGIN_OK,         out.result);
+    TEST_ASSERT_EQUAL(AUTH_SRC_ADAPTER, out.source);
+    TEST_ASSERT_EQUAL(1, g_adapterCallCount);
+}
+
+void test_adapter_rejection_no_nvs_fallthrough(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "alice", "correctpass", "admin", testRandFn, testHashFn);
+    g_adapterCallCount = 0; g_adapterShouldSucceed = false; g_adapterShouldError = false;
+    LoginOutcome out = authAttemptLogin("alice", "correctpass", true,
+                                        mockAdapter, nullptr,
+                                        &g_store, testHashFn);
+    // Adapter said REJECTED — must NOT fall through to NVS
+    TEST_ASSERT_EQUAL(LOGIN_REJECTED, out.result);
+    TEST_ASSERT_EQUAL(1, g_adapterCallCount);
+}
+
+void test_adapter_error_falls_through_to_nvs_success(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "alice", "correctpass", "admin", testRandFn, testHashFn);
+    g_adapterCallCount = 0; g_adapterShouldSucceed = false; g_adapterShouldError = true;
+    LoginOutcome out = authAttemptLogin("alice", "correctpass", true,
+                                        mockAdapter, nullptr,
+                                        &g_store, testHashFn);
+    TEST_ASSERT_EQUAL(LOGIN_OK,      out.result);
+    TEST_ASSERT_EQUAL(AUTH_SRC_NVS,  out.source);
+}
+
+void test_adapter_error_falls_through_to_nvs_failure(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "alice", "correctpass", "admin", testRandFn, testHashFn);
+    g_adapterCallCount = 0; g_adapterShouldSucceed = false; g_adapterShouldError = true;
+    LoginOutcome out = authAttemptLogin("alice", "wrongpass", true,
+                                        mockAdapter, nullptr,
+                                        &g_store, testHashFn);
+    TEST_ASSERT_EQUAL(LOGIN_REJECTED, out.result);
+}
+
+void test_no_adapter_configured_uses_nvs_directly(void) {
+    clearStore();
+    g_randCounter = 0;
+    authAddUser(&g_store, "alice", "correctpass", "admin", testRandFn, testHashFn);
+    g_adapterCallCount = 0;
+    // adapter_configured = false — mockAdapter must never be called
+    LoginOutcome out = authAttemptLogin("alice", "correctpass", false,
+                                        mockAdapter, nullptr,
+                                        &g_store, testHashFn);
+    TEST_ASSERT_EQUAL(LOGIN_OK,     out.result);
+    TEST_ASSERT_EQUAL(AUTH_SRC_NVS, out.source);
+    TEST_ASSERT_EQUAL(0, g_adapterCallCount);
+}
+
+void test_influx_log_event_fields(void) {
+    AuthLogEvent ev = authBuildLogEvent("login_success", "alice",
+                                         "192.168.1.50", "nvs");
+    TEST_ASSERT_EQUAL_STRING("login_success", ev.event);
+    TEST_ASSERT_EQUAL_STRING("alice",         ev.username);
+    TEST_ASSERT_EQUAL_STRING("192.168.1.50",  ev.client_ip);
+    TEST_ASSERT_EQUAL_STRING("nvs",           ev.auth_source);
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_auth_logic_header_compiles);
@@ -277,5 +453,18 @@ int main(int argc, char **argv) {
     RUN_TEST(test_logout_invalidates_token);
     RUN_TEST(test_expired_slot_reclaimed_before_valid);
     RUN_TEST(test_oldest_valid_evicted_when_all_full);
+    RUN_TEST(test_add_user_and_find);
+    RUN_TEST(test_max_users_enforced);
+    RUN_TEST(test_delete_user);
+    RUN_TEST(test_slot0_delete_rejected);
+    RUN_TEST(test_slot0_password_change_permitted);
+    RUN_TEST(test_delete_non_slot0_preserves_slot0_protection);
+    RUN_TEST(test_password_below_min_rejected_on_add);
+    RUN_TEST(test_adapter_success_issues_token);
+    RUN_TEST(test_adapter_rejection_no_nvs_fallthrough);
+    RUN_TEST(test_adapter_error_falls_through_to_nvs_success);
+    RUN_TEST(test_adapter_error_falls_through_to_nvs_failure);
+    RUN_TEST(test_no_adapter_configured_uses_nvs_directly);
+    RUN_TEST(test_influx_log_event_fields);
     return UNITY_END();
 }
