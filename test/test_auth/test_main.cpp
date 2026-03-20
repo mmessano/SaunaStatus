@@ -154,21 +154,21 @@ void test_logout_invalidates_token(void) {
 }
 
 void test_expired_slot_reclaimed_before_valid(void) {
+    // Tests the first branch of authFindEvictSlot: an expired slot is chosen
+    // before falling through to the oldest-eviction path.
+    // Use authFindEvictSlot directly so we can supply a custom ttl_ms that
+    // makes only slot 3 expired (authIssueToken hardcodes AUTH_TOKEN_TTL_MS).
     clearSessions();
+    // All 10 slots active, issued at ms=1000. now=5000 → age=4000.
     for (int i = 0; i < AUTH_MAX_SESSIONS; i++) {
-        g_randCounter = i;
-        char t[65];
-        char user[8]; user[0]='u'; user[1]='0'+i; user[2]='\0';
-        authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
-                       user, "admin", 1000, testRandFn, t);
+        g_sessions[i].active    = true;
+        g_sessions[i].issued_ms = 1000;
     }
-    g_sessions[3].issued_ms = 0;  // make slot 3 expired
-    g_randCounter = 99;
-    char newToken[65];
-    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
-                   "newuser", "admin", 5000, testRandFn, newToken);
-    TEST_ASSERT_EQUAL_STRING("newuser", g_sessions[3].username);
-    TEST_ASSERT_EQUAL(5000, g_sessions[3].issued_ms);
+    // Slot 3: issued at ms=0. now=5000, age=5000.
+    // With ttl=4500: 5000 > 4500 → expired. All others: 4000 < 4500 → valid.
+    g_sessions[3].issued_ms = 0;
+    int slot = authFindEvictSlot(g_sessions, AUTH_MAX_SESSIONS, 5000, 4500UL);
+    TEST_ASSERT_EQUAL(3, slot);  // expired slot chosen; valid sessions not displaced
 }
 
 void test_oldest_valid_evicted_when_all_full(void) {
