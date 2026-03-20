@@ -86,3 +86,38 @@ typedef AdapterResult (*AdapterFn)(const char *username,
                                    const char *password,
                                    char *out_role,
                                    void *ctx);
+
+// ── Hex helpers ──────────────────────────────────────────────────────────
+inline void authBytesToHex(const uint8_t *bytes, size_t len, char *out) {
+    static const char HEX[] = "0123456789abcdef";
+    for (size_t i = 0; i < len; i++) {
+        out[i * 2]     = HEX[(bytes[i] >> 4) & 0xF];
+        out[i * 2 + 1] = HEX[bytes[i] & 0xF];
+    }
+    out[len * 2] = '\0';
+}
+
+inline void authHexToBytes(const char *hex, uint8_t *out, size_t out_len) {
+    for (size_t i = 0; i < out_len; i++) {
+        auto hexVal = [](char c) -> uint8_t {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return 0;
+        };
+        out[i] = (hexVal(hex[i * 2]) << 4) | hexVal(hex[i * 2 + 1]);
+    }
+}
+
+// ── Constant-time token comparison (prevents timing side-channel) ─────────
+// Both strings must be null-terminated. Returns false immediately if either
+// is not exactly 64 chars — prevents OOB reads on short inputs.
+inline bool authTokenEqual(const char *a, const char *b) {
+    size_t la = 0, lb = 0;
+    while (la <= 64 && a[la]) la++;
+    while (lb <= 64 && b[lb]) lb++;
+    if (la != 64 || lb != 64) return false;
+    uint8_t diff = 0;
+    for (int i = 0; i < 64; i++) diff |= (uint8_t)a[i] ^ (uint8_t)b[i];
+    return diff == 0;
+}
