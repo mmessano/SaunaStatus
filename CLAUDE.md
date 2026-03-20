@@ -136,7 +136,7 @@ pio run -t clean
 pio test -e native
 ```
 
-All firmware commands default to the `upesy_wroom` environment (board: `denky32`, ESP32-WROOM-32). Unit tests use the `native` environment.
+All firmware commands default to the `upesy_wroom` environment (board: `esp32doit-devkit-v1`, ESP32-WROOM-32). Unit tests use the `native` environment.
 
 ## Architecture
 

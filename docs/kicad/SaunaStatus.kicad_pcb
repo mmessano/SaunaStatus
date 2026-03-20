@@ -4223,15 +4223,15 @@
 		)
 	)
 	(gr_rect
-		(start 67 55)
+		(start 67 29)
 		(end 220 130)
 		(stroke
 			(width 0.05)
 			(type default)
 		)
-		(fill none)
+		(fill no)
 		(layer "Edge.Cuts")
-		(uuid "edge0001-0000-0000-0000-000000000001")
+		(uuid "5b18d84b-4452-47d9-9b3a-21bb762fb26b")
 	)
 	(embedded_fonts no)
 )

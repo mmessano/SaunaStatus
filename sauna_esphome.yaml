@@ -1,6 +1,6 @@
 # =============================================================================
 # Sauna Controller — ESPHome Configuration
-# Board: ESP32-WROOM-32 (denky32)
+# Board: ESP32-WROOM-32 (esp32doit-devkit-v1)
 #
 # NOTE: This is a FIRMWARE REPLACEMENT for the PlatformIO firmware.
 #       Flash with: esphome run sauna_esphome.yaml

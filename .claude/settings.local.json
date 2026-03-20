@@ -51,7 +51,8 @@
       "Bash(echo \"OK:      $f\")",
       "Bash(echo \"INVALID: $f\")",
       "Bash(done)",
-      "mcp__kicad__run_drc"
+      "mcp__kicad__run_drc",
+      "Bash(kicad-cli --version)"
     ]
   },
   "hooks": {

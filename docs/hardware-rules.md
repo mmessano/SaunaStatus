@@ -45,7 +45,7 @@ These four pins constitute the complete VSPI bus. Adding another SPI device requ
 
 ### Flash-Connected Pins — Absolutely Off-Limits
 
-GPIO 6, 7, 8, 9, 10, 11 are connected to the internal SPI flash on the ESP32-WROOM-32 module. Driving or reading these pins will corrupt flash and crash the device. They are not broken out on the Denky32/WROOM-32 header.
+GPIO 6, 7, 8, 9, 10, 11 are connected to the internal SPI flash on the ESP32-WROOM-32 module. Driving or reading these pins will corrupt flash and crash the device. They are not broken out on the esp32doit-devkit-v1/WROOM-32 header.
 
 The `SHD/SD2` (pad 17) and `SWP/SD3` (pad 18) pins visible in the KiCad schematic are flash bus lines on the module; both are marked no-connect in `report.txt` and must stay unconnected.
 
@@ -229,7 +229,7 @@ Error: Cannot add U2 (no footprint assigned).
 
 ---
 
-## 10. ESP32-WROOM-32 / Denky32 Constraints
+## 10. ESP32-WROOM-32 / esp32doit-devkit-v1 Constraints
 
 | Category | Detail |
 |----------|--------|
