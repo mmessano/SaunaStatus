@@ -415,6 +415,68 @@ void test_reconnect_partial_hum_ok_temp_nan(void) {
     TEST_ASSERT_NULL_MESSAGE(strstr(buf, "\"clh\":null"),     "recovered hum must not be null");
 }
 
+// Disconnect scenario: sensor was providing readings (last_ok_ms=1000),
+// then goes silent — at now_ms=11001 it exceeds the 10s threshold.
+// This is the real "physical disconnect" path distinct from last_ok_ms==0.
+void test_disconnect_elapsed_time_becomes_stale(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = 72.0f;  // last known value — must NOT appear in output
+    sv.ceiling_hum        = 50.0f;
+    sv.bench_temp         = 60.0f;
+    sv.bench_hum          = 38.0f;
+    sv.stove_temp         = 180.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 1000;   // was alive at t=1000
+    sv.bench_last_ok_ms   = 1000;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    char buf[512];
+    buildJsonFull(sv, ms, ps, 11001UL, buf, sizeof(buf));  // 11001-1000=10001 > 10000
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"cst\":1"),    "ceiling should be stale after disconnect");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"clt\":null"), "stale ceiling temp must be null, not last-known value");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"clh\":null"), "stale ceiling hum must be null");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf, "\"bst\":1"),    "bench should also be stale");
+}
+
+// Broadcast timing: sensor is fresh on the first broadcast and stale on the second.
+// Calls buildJsonFull twice with increasing now_ms to verify the transition happens
+// at exactly the right moment (matching the 2-second sensor read cycle cadence).
+void test_broadcast_timing_fresh_then_stale(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = 73.0f;
+    sv.ceiling_hum        = 46.0f;
+    sv.bench_temp         = 61.0f;
+    sv.bench_hum          = 39.0f;
+    sv.stove_temp         = 185.0f;
+    sv.pwr_bus_V          = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_current_mA     = std::numeric_limits<float>::quiet_NaN();
+    sv.pwr_mW             = std::numeric_limits<float>::quiet_NaN();
+    sv.ceiling_last_ok_ms = 10000;  // last successful read at t=10000
+    sv.bench_last_ok_ms   = 10000;
+    sv.stale_threshold_ms = 10000;
+
+    MotorState ms{};
+    PIDState ps{};
+
+    // First broadcast at t=20000: age=10000, exactly at threshold — NOT stale (strict >)
+    char buf1[512];
+    buildJsonFull(sv, ms, ps, 20000UL, buf1, sizeof(buf1));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf1, "\"cst\":0"), "at threshold boundary: should not be stale");
+    TEST_ASSERT_NULL_MESSAGE(strstr(buf1, "\"clt\":null"),  "at threshold boundary: temp should be valid");
+
+    // Second broadcast at t=20001: age=10001 > threshold — NOW stale
+    char buf2[512];
+    buildJsonFull(sv, ms, ps, 20001UL, buf2, sizeof(buf2));
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf2, "\"cst\":1"),    "one ms past threshold: should be stale");
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf2, "\"clt\":null"), "one ms past threshold: temp must be null");
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_json_contains_all_keys);
@@ -434,5 +496,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_simultaneous_both_sensors_stale_all_fields_null);
     RUN_TEST(test_partial_dht_failure_temp_nan_hum_valid);
     RUN_TEST(test_reconnect_partial_hum_ok_temp_nan);
+    RUN_TEST(test_disconnect_elapsed_time_becomes_stale);
+    RUN_TEST(test_broadcast_timing_fresh_then_stale);
     return UNITY_END();
 }

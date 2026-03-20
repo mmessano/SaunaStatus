@@ -40,7 +40,17 @@
       "mcp__kicad__list_pcb_footprints",
       "Bash(python3:*)",
       "Bash(sort -t R -k2 -n)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(~/.local/bin/pio test:*)",
+      "Bash(~/.platformio/penv/bin/pio test:*)",
+      "Bash(~/.platformio/penv/bin/pio run:*)",
+      "Bash(pip show:*)",
+      "Bash(pip --version)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(echo \"OK:      $f\")",
+      "Bash(echo \"INVALID: $f\")",
+      "Bash(done)"
     ]
   },
   "hooks": {
