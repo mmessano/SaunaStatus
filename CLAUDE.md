@@ -68,6 +68,19 @@ When modifying sensor or hardware-related code, always handle failure/disconnect
 
 After making bug fixes or feature changes to ESP32/embedded code, review all related state variables to ensure they are properly reset or invalidated on error conditions.
 
+### Post-Edit Validation
+
+After any code edit, immediately run the most relevant validation — never assume an edit is correct without it:
+
+| File type | Validation command |
+|---|---|
+| C++ / `.h` | `pio run` — check for compiler errors and warnings |
+| JSON | `python3 -m json.tool <file>` — catches trailing commas and syntax errors |
+| Python | `python3 -m py_compile <file>` |
+| Functional change | `pio test -e native` — run unit tests to confirm behavior |
+
+If validation fails, fix the issue before moving on. Do not leave a broken state and continue with other changes.
+
 ### JSON Editing Rules
 
 When editing JSON files, always validate syntax after changes — especially check for trailing commas. Use `python3 -m json.tool <file>` to validate.
