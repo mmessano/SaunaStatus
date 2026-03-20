@@ -17,6 +17,13 @@
 #include <Update.h>
 #include <esp_ota_ops.h>
 #include "secrets.h"
+#ifndef AUTH_ADMIN_USER
+#error "AUTH_ADMIN_USER must be defined in secrets.h (e.g. #define AUTH_ADMIN_USER \"admin\")"
+#endif
+#ifndef AUTH_ADMIN_PASS
+#error "AUTH_ADMIN_PASS must be defined in secrets.h (e.g. #define AUTH_ADMIN_PASS \"yourpassword\")"
+#endif
+#include "auth.h"
 #include "sauna_logic.h"
 #include "ota_logic.h"
 
@@ -57,10 +64,15 @@
 #define TZ_INFO "CST6CDT,M3.2.0,M11.1.0"
 
 // Local HTTP InfluxDB — no TLS certificate needed
-InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
+InfluxDBClient influxClient(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
 
 Point status("sauna_status");
 Point control("sauna_control");
+Point          webaccess("sauna_webaccess");
+AuthSession    g_auth_sessions[AUTH_MAX_SESSIONS];
+AuthUserStore  g_auth_users;
+char           g_db_url[128] = "";
+char           g_db_key[64]  = "";
 
 // Add 3WIRE PT1000 sensor for the stove
 // use hardware SPI, just pass in the CS pin
@@ -457,7 +469,7 @@ bool writeInflux()
     if (!isnan(pwr_mW))
       status.addField("power_mW", pwr_mW);
   }
-  bool ok = client.writePoint(status);
+  bool ok = influxClient.writePoint(status);
 
   // sauna_control — PID controller state and motor output
   control.clearFields();
@@ -467,7 +479,7 @@ bool writeInflux()
   control.addField("ceiling_pid_out", ceiling_output);
   control.addField("bench_setpoint", Benchpoint);
   control.addField("bench_pid_out", bench_output);
-  ok &= client.writePoint(control);
+  ok &= influxClient.writePoint(control);
 
   return ok;
 }
@@ -508,11 +520,12 @@ static void handleDeleteMeasurement(const char *measurement)
     server.send(500, "text/plain", "Delete failed");
 }
 
-void handleDeleteStatus() { handleDeleteMeasurement("sauna_status"); }
-void handleDeleteControl() { handleDeleteMeasurement("sauna_control"); }
+void handleDeleteStatus() { if (!requireAdmin()) return; handleDeleteMeasurement("sauna_status"); }
+void handleDeleteControl() { if (!requireAdmin()) return; handleDeleteMeasurement("sauna_control"); }
 
 void handleMotorCmd()
 {
+  if (!requireAdmin()) return;
   String motor = server.arg("motor");
   String cmd = server.arg("cmd");
   int steps = server.hasArg("steps") ? server.arg("steps").toInt() : 64;
@@ -633,6 +646,7 @@ void handleMotorCmd()
 
 void handlePidToggle()
 {
+  if (!requireAdmin()) return;
   if (server.hasArg("ceiling"))
     ceiling_pid_en = server.arg("ceiling") == "1";
   if (server.hasArg("bench"))
@@ -643,6 +657,7 @@ void handlePidToggle()
 
 void handleSetpoint()
 {
+  if (!requireAdmin()) return;
   if (server.hasArg("ceiling"))
   {
     float f = server.arg("ceiling").toFloat();
@@ -706,6 +721,7 @@ void handleHistory()
 
 void handleLog()
 {
+  if (!requireAdmin()) return;
   if (writeInflux())
   {
     Serial.println("InfluxDB manual write OK");
@@ -714,8 +730,8 @@ void handleLog()
   else
   {
     Serial.print("InfluxDB manual write failed: ");
-    Serial.println(client.getLastErrorMessage());
-    server.send(500, "text/plain", client.getLastErrorMessage());
+    Serial.println(influxClient.getLastErrorMessage());
+    server.send(500, "text/plain", influxClient.getLastErrorMessage());
   }
 }
 
@@ -952,6 +968,7 @@ static void otaMarkBootSuccessful()
 // GET /ota/status — return current firmware version and partition info
 void handleOtaStatus()
 {
+  if (!requireAdmin()) return;
   const esp_partition_t *running = esp_ota_get_running_partition();
   char buf[192];
   snprintf(buf, sizeof(buf),
@@ -972,6 +989,7 @@ void handleOtaStatus()
 // The partial-download state is persisted to NVS so a power failure is detectable.
 void handleOtaUpdate()
 {
+  if (!requireAdmin()) return;
   if (!server.hasArg("manifest")) {
     server.send(400, "application/json", "{\"ok\":false,\"error\":\"missing manifest param\"}");
     return;
@@ -1128,6 +1146,7 @@ void handleConfigPage()
 // GET /config/get — return current config as JSON
 void handleConfigGet()
 {
+  if (!requireAdmin()) return;
   char buf[320];
   snprintf(buf, sizeof(buf),
            "{\"ceiling_setpoint_f\":%.1f,\"bench_setpoint_f\":%.1f,"
@@ -1146,6 +1165,7 @@ void handleConfigGet()
 // Returns: {"ok":true,"restart_required":false} or {"ok":false,"error":"..."}
 void handleConfigSave()
 {
+  if (!requireAdmin()) return;
   bool restart_required = false;
 
   // Staged values — only applied after all validation passes
@@ -1300,6 +1320,142 @@ send_error:
   }
 }
 
+// ---------------------------------------------------------------------------
+// Auth route handlers
+// ---------------------------------------------------------------------------
+
+void handleAuthLoginPage() {
+    authAddSecurityHeaders();
+    File f = LittleFS.open("/login.html", "r");
+    if (!f) { server.send(404, "text/plain", "login.html not found"); return; }
+    server.sendHeader("Cache-Control", "no-store");
+    server.streamFile(f, "text/html");
+    f.close();
+}
+
+void handleAuthLogin() {
+    authAddSecurityHeaders();
+    server.sendHeader("Cache-Control", "no-store");
+    if (!server.hasArg("plain")) { server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
+    StaticJsonDocument<128> doc;
+    if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
+        server.send(400, "application/json", "{\"error\":\"bad json\"}"); return;
+    }
+    const char *username = doc["username"] | "";
+    const char *password = doc["password"] | "";
+    bool adapterConfigured = g_db_url[0] != '\0';
+    AdapterCtx ctx{ g_db_url, g_db_key };
+    LoginOutcome out = authAttemptLogin(username, password,
+                                        adapterConfigured,
+                                        adapterConfigured ? adapterShim : nullptr,
+                                        adapterConfigured ? &ctx : nullptr,
+                                        &g_auth_users, mbedHashFn);
+    const char *srcStr = (out.source == AUTH_SRC_ADAPTER) ? "adapter" : "nvs";
+    if (out.result != LOGIN_OK) {
+        logAccessEvent("login_failure", username, srcStr);
+        server.send(401, "application/json", "{\"error\":\"invalid credentials\"}");
+        return;
+    }
+    char token[65];
+    authIssueToken(g_auth_sessions, AUTH_MAX_SESSIONS,
+                   username, out.role, millis(), espRandFn, token);
+    logAccessEvent("login_success", username, srcStr);
+    StaticJsonDocument<192> resp;
+    resp["token"]      = token;
+    resp["expires_in"] = AUTH_TOKEN_TTL_MS / 1000;
+    resp["username"]   = username;
+    resp["role"]       = out.role;
+    String body; serializeJson(resp, body);
+    server.send(200, "application/json", body);
+}
+
+void handleAuthLogout() {
+    authAddSecurityHeaders();
+    const AuthSession *s = requireAdmin();
+    if (!s) return;
+    char username[33]; strncpy(username, s->username, 32); username[32] = '\0';
+    String auth = server.header("Authorization");
+    String token = auth.substring(7);
+    authInvalidateToken(g_auth_sessions, AUTH_MAX_SESSIONS, token.c_str());
+    logAccessEvent("logout", username, "none");
+    server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void handleAuthStatus() {
+    authAddSecurityHeaders();
+    const AuthSession *s = requireAdmin();
+    if (!s) return;
+    StaticJsonDocument<128> doc;
+    doc["valid"]    = true;
+    doc["username"] = s->username;
+    doc["role"]     = s->role;
+    String body; serializeJson(doc, body);
+    server.send(200, "application/json", body);
+}
+
+void handleUsersGet() {
+    if (!requireAdmin()) return;
+    StaticJsonDocument<512> doc;
+    JsonArray arr = doc.to<JsonArray>();
+    for (int i = 0; i < g_auth_users.count; i++) {
+        JsonObject u = arr.createNestedObject();
+        u["username"]  = g_auth_users.users[i].name;
+        u["role"]      = g_auth_users.users[i].role;
+        u["protected"] = (i == 0);
+    }
+    String body; serializeJson(doc, body);
+    server.send(200, "application/json", body);
+}
+
+void handleUsersCreate() {
+    if (!requireAdmin()) return;
+    if (!server.hasArg("plain")) { server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
+    StaticJsonDocument<128> doc;
+    if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
+        server.send(400, "application/json", "{\"error\":\"bad json\"}"); return;
+    }
+    const char *username = doc["username"] | "";
+    const char *password = doc["password"] | "";
+    const char *role     = doc["role"]     | "admin";
+    AuthUserResult r = authAddUser(&g_auth_users, username, password, role,
+                                    espRandFn, mbedHashFn);
+    if (r == AUTH_USER_BAD_PASS) { server.send(400, "application/json", "{\"error\":\"password too short\"}"); return; }
+    if (r == AUTH_USER_FULL)     { server.send(409, "application/json", "{\"error\":\"user limit reached\"}"); return; }
+    if (r == AUTH_USER_EXISTS)   { server.send(409, "application/json", "{\"error\":\"username taken\"}"); return; }
+    authNvsSave(&g_auth_users);
+    server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void handleUsersDelete() {
+    if (!requireAdmin()) return;
+    if (!server.hasArg("username")) { server.send(400, "application/json", "{\"error\":\"missing username\"}"); return; }
+    String username = server.arg("username");
+    AuthUserResult r = authDeleteUser(&g_auth_users, username.c_str(), 0);
+    if (r == AUTH_USER_PROTECTED)  { server.send(403, "application/json", "{\"error\":\"cannot delete emergency admin\"}"); return; }
+    if (r == AUTH_USER_NOT_FOUND)  { server.send(404, "application/json", "{\"error\":\"user not found\"}"); return; }
+    authNvsSave(&g_auth_users);
+    server.send(200, "application/json", "{\"ok\":true}");
+}
+
+void handleUsersChangePassword() {
+    if (!requireAdmin()) return;
+    if (!server.hasArg("username") || !server.hasArg("plain")) {
+        server.send(400, "application/json", "{\"error\":\"missing fields\"}"); return;
+    }
+    String username = server.arg("username");
+    StaticJsonDocument<128> doc;
+    if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
+        server.send(400, "application/json", "{\"error\":\"bad json\"}"); return;
+    }
+    const char *newPass = doc["password"] | "";
+    AuthUserResult r = authChangePassword(&g_auth_users, username.c_str(),
+                                           newPass, espRandFn, mbedHashFn);
+    if (r == AUTH_USER_BAD_PASS)   { server.send(400, "application/json", "{\"error\":\"password too short\"}"); return; }
+    if (r == AUTH_USER_NOT_FOUND)  { server.send(404, "application/json", "{\"error\":\"user not found\"}"); return; }
+    authNvsSave(&g_auth_users);
+    server.send(200, "application/json", "{\"ok\":true}");
+}
+
 // begin Setup
 void setup()
 {
@@ -1429,17 +1585,19 @@ void setup()
   status.addTag("SSID", WiFi.SSID());
   control.addTag("device", g_device_name);
   control.addTag("SSID", WiFi.SSID());
+  webaccess.addTag("device", g_device_name);
+  webaccess.addTag("SSID",   WiFi.SSID());
 
   // Validate InfluxDB connection
-  if (client.validateConnection())
+  if (influxClient.validateConnection())
   {
     Serial.print("Connected to InfluxDB: ");
-    Serial.println(client.getServerUrl());
+    Serial.println(influxClient.getServerUrl());
   }
   else
   {
     Serial.print("InfluxDB connection failed: ");
-    Serial.println(client.getLastErrorMessage());
+    Serial.println(influxClient.getLastErrorMessage());
   }
 
   outflow.setRpm(MOTOR_RPM);
@@ -1449,6 +1607,12 @@ void setup()
   CeilingPID.SetOutputLimits(0, 255);
   BenchPID.SetMode(QuickPID::Control::automatic);
   BenchPID.SetOutputLimits(0, 255);
+
+  // Auth: load config, init session store, load users, seed emergency admin
+  authNvsLoadConfig(g_db_url, g_db_key);
+  memset(g_auth_sessions, 0, sizeof(g_auth_sessions));
+  authNvsLoad(&g_auth_users);
+  authSeedEmergencyAdmin(&g_auth_users);
 
   server.on("/", handleRoot);
   server.on("/log", handleLog);
@@ -1463,6 +1627,16 @@ void setup()
   server.on("/config/save", HTTP_POST, handleConfigSave);
   server.on("/ota/status", HTTP_GET, handleOtaStatus);
   server.on("/ota/update", HTTP_POST, handleOtaUpdate);
+  server.on("/auth/login",  HTTP_GET,  handleAuthLoginPage);
+  server.on("/auth/login",  HTTP_POST, handleAuthLogin);
+  server.on("/auth/logout", HTTP_POST, handleAuthLogout);
+  server.on("/auth/status", HTTP_GET,  handleAuthStatus);
+  server.on("/users",       HTTP_GET,  handleUsersGet);
+  server.on("/users",       HTTP_POST, handleUsersCreate);
+  server.on("/users",       HTTP_DELETE, handleUsersDelete);
+  server.on("/users",       HTTP_PUT,  handleUsersChangePassword);
+  const char *authHdrs[] = {"Authorization"};
+  server.collectHeaders(authHdrs, 1);
   server.begin();
   Serial.println("HTTP server started on port 80");
 
@@ -1751,7 +1925,7 @@ void loop()
     else
     {
       Serial.print("InfluxDB write failed: ");
-      Serial.println(client.getLastErrorMessage());
+      Serial.println(influxClient.getLastErrorMessage());
     }
   }
 }

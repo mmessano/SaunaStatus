@@ -89,10 +89,10 @@ typedef AdapterResult (*AdapterFn)(const char *username,
 
 // ── Hex helpers ──────────────────────────────────────────────────────────
 inline void authBytesToHex(const uint8_t *bytes, size_t len, char *out) {
-    static const char HEX[] = "0123456789abcdef";
+    static const char kHexChars[] = "0123456789abcdef";
     for (size_t i = 0; i < len; i++) {
-        out[i * 2]     = HEX[(bytes[i] >> 4) & 0xF];
-        out[i * 2 + 1] = HEX[bytes[i] & 0xF];
+        out[i * 2]     = kHexChars[(bytes[i] >> 4) & 0xF];
+        out[i * 2 + 1] = kHexChars[bytes[i] & 0xF];
     }
     out[len * 2] = '\0';
 }
