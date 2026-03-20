@@ -169,3 +169,62 @@ inline bool authTokenEqual(const char *a, const char *b) {
     for (int i = 0; i < 64; i++) diff |= (uint8_t)a[i] ^ (uint8_t)b[i];
     return diff == 0;
 }
+
+// ── Session operations ────────────────────────────────────────────────────
+
+// Finds the best slot to reclaim: expired/inactive first, then oldest by issued_ms
+inline int authFindEvictSlot(AuthSession sessions[], int max,
+                              uint32_t now_ms, uint32_t ttl_ms) {
+    for (int i = 0; i < max; i++) {
+        if (!sessions[i].active) return i;
+        if ((now_ms - sessions[i].issued_ms) > ttl_ms) return i;
+    }
+    int oldest = 0;
+    uint32_t maxAge = 0;
+    for (int i = 0; i < max; i++) {
+        uint32_t age = now_ms - sessions[i].issued_ms;
+        if (age > maxAge) { maxAge = age; oldest = i; }
+    }
+    return oldest;
+}
+
+// Issues a new token. Evicts a slot if all are full. Fills out_token[65].
+inline bool authIssueToken(AuthSession sessions[], int max,
+                            const char *username, const char *role,
+                            uint32_t now_ms, AuthRandFn rand_fn,
+                            char *out_token) {
+    int slot = authFindEvictSlot(sessions, max, now_ms, AUTH_TOKEN_TTL_MS);
+    uint8_t raw[32];
+    rand_fn(raw, 32);
+    authBytesToHex(raw, 32, out_token);
+    AuthSession &s = sessions[slot];
+    memset(&s, 0, sizeof(AuthSession));
+    strncpy(s.token,    out_token, 64); s.token[64] = '\0';
+    strncpy(s.username, username, 32);  s.username[32] = '\0';
+    strncpy(s.role,     role,     16);  s.role[16] = '\0';
+    s.issued_ms = now_ms;
+    s.active    = true;
+    return true;
+}
+
+// Returns pointer to valid session, or nullptr. Expiry uses unsigned subtraction (rollover-safe).
+inline const AuthSession *authValidateToken(const AuthSession sessions[], int max,
+                                             const char *token,
+                                             uint32_t now_ms, uint32_t ttl_ms) {
+    for (int i = 0; i < max; i++) {
+        if (!sessions[i].active) continue;
+        if ((now_ms - sessions[i].issued_ms) > ttl_ms) continue;
+        if (authTokenEqual(sessions[i].token, token)) return &sessions[i];
+    }
+    return nullptr;
+}
+
+// Clears the session matching token (if found).
+inline void authInvalidateToken(AuthSession sessions[], int max, const char *token) {
+    for (int i = 0; i < max; i++) {
+        if (sessions[i].active && authTokenEqual(sessions[i].token, token)) {
+            memset(&sessions[i], 0, sizeof(AuthSession));
+            return;
+        }
+    }
+}

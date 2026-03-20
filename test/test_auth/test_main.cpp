@@ -53,8 +53,6 @@ void test_token_equal_empty_vs_nonempty(void) {
     TEST_ASSERT_FALSE(authTokenEqual(a, b));
 }
 
-// TODO: uncomment in Task 4 after authIssueToken/authValidateToken are implemented
-/*
 void test_short_token_rejected(void) {
     // A token shorter than 64 chars must never match any stored session
     AuthSession sessions[AUTH_MAX_SESSIONS];
@@ -66,7 +64,130 @@ void test_short_token_rejected(void) {
     TEST_ASSERT_NULL(authValidateToken(sessions, AUTH_MAX_SESSIONS,
                                        "shorttoken", 2000, AUTH_TOKEN_TTL_MS));
 }
-*/
+
+// ── Session helpers ───────────────────────────────────────────────────────
+static AuthSession g_sessions[AUTH_MAX_SESSIONS];
+
+static void clearSessions(void) {
+    memset(g_sessions, 0, sizeof(g_sessions));
+}
+
+void test_issue_token_populates_slot(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    bool ok = authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                              "alice", "admin", 1000, testRandFn, token);
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_EQUAL_STRING("alice", g_sessions[0].username);
+    TEST_ASSERT_EQUAL_STRING("admin", g_sessions[0].role);
+    TEST_ASSERT_TRUE(g_sessions[0].active);
+    TEST_ASSERT_EQUAL(1000, g_sessions[0].issued_ms);
+    TEST_ASSERT_EQUAL(64, (int)strlen(token));
+}
+
+void test_issued_token_validates(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "alice", "admin", 1000, testRandFn, token);
+    const AuthSession *s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS,
+                                              token, 2000, AUTH_TOKEN_TTL_MS);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("alice", s->username);
+}
+
+void test_wrong_token_rejected(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "alice", "admin", 1000, testRandFn, token);
+    token[0] = (token[0] == 'a') ? 'b' : 'a';
+    const AuthSession *s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS,
+                                              token, 2000, AUTH_TOKEN_TTL_MS);
+    TEST_ASSERT_NULL(s);
+}
+
+void test_expired_token_rejected(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "alice", "admin", 0, testRandFn, token);
+    // exactly at TTL — NOT expired (strict >)
+    const AuthSession *s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS,
+                                              token, AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_MS);
+    TEST_ASSERT_NOT_NULL(s);
+    // one ms over — expired
+    s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS,
+                          token, AUTH_TOKEN_TTL_MS + 1, AUTH_TOKEN_TTL_MS);
+    TEST_ASSERT_NULL(s);
+}
+
+void test_expiry_across_millis_rollover(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    uint32_t issued = 0xFFFFFF00UL;
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "alice", "admin", issued, testRandFn, token);
+    uint32_t now = 0x00000100UL;  // wrapped — elapsed = 0x100 = 256ms
+    const AuthSession *s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS,
+                                              token, now, 1000UL);
+    TEST_ASSERT_NOT_NULL(s);  // 256 < 1000
+    s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS, token, now, 200UL);
+    TEST_ASSERT_NULL(s);      // 256 > 200
+}
+
+void test_logout_invalidates_token(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "alice", "admin", 1000, testRandFn, token);
+    authInvalidateToken(g_sessions, AUTH_MAX_SESSIONS, token);
+    const AuthSession *s = authValidateToken(g_sessions, AUTH_MAX_SESSIONS,
+                                              token, 2000, AUTH_TOKEN_TTL_MS);
+    TEST_ASSERT_NULL(s);
+}
+
+void test_expired_slot_reclaimed_before_valid(void) {
+    clearSessions();
+    for (int i = 0; i < AUTH_MAX_SESSIONS; i++) {
+        g_randCounter = i;
+        char t[65];
+        char user[8]; user[0]='u'; user[1]='0'+i; user[2]='\0';
+        authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                       user, "admin", 1000, testRandFn, t);
+    }
+    g_sessions[3].issued_ms = 0;  // make slot 3 expired
+    g_randCounter = 99;
+    char newToken[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "newuser", "admin", 5000, testRandFn, newToken);
+    TEST_ASSERT_EQUAL_STRING("newuser", g_sessions[3].username);
+    TEST_ASSERT_EQUAL(5000, g_sessions[3].issued_ms);
+}
+
+void test_oldest_valid_evicted_when_all_full(void) {
+    clearSessions();
+    for (int i = 0; i < AUTH_MAX_SESSIONS; i++) {
+        g_randCounter = i;
+        char t[65];
+        char user[8]; user[0]='u'; user[1]='0'+i; user[2]='\0';
+        authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                       user, "admin", (uint32_t)(i * 1000), testRandFn, t);
+    }
+    // slot 0 has issued_ms=0 → oldest → should be evicted
+    g_randCounter = 99;
+    char newToken[65];
+    uint32_t now = AUTH_MAX_SESSIONS * 1000 + 500;
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "latecomer", "admin", now, testRandFn, newToken);
+    TEST_ASSERT_EQUAL_STRING("latecomer", g_sessions[0].username);
+}
 
 // Test hash: XOR-fold all bytes into each output byte — deterministic, not secure
 static void testHashFn(const uint8_t *data, size_t len, uint8_t *out32) {
@@ -147,5 +268,14 @@ int main(int argc, char **argv) {
     RUN_TEST(test_password_above_min_len_accepted);
     RUN_TEST(test_password_at_max_len_accepted);
     RUN_TEST(test_password_above_max_len_rejected);
+    RUN_TEST(test_short_token_rejected);
+    RUN_TEST(test_issue_token_populates_slot);
+    RUN_TEST(test_issued_token_validates);
+    RUN_TEST(test_wrong_token_rejected);
+    RUN_TEST(test_expired_token_rejected);
+    RUN_TEST(test_expiry_across_millis_rollover);
+    RUN_TEST(test_logout_invalidates_token);
+    RUN_TEST(test_expired_slot_reclaimed_before_valid);
+    RUN_TEST(test_oldest_valid_evicted_when_all_full);
     return UNITY_END();
 }
