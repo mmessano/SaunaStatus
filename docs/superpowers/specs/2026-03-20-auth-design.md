@@ -389,15 +389,84 @@ Same `authFetch` pattern; redirect to login on 401; logout button.
 
 ---
 
+## InfluxDB Access Logging
+
+### Measurement: `sauna_webaccess`
+
+Login, logout, and failed login events are written immediately to the existing InfluxDB bucket and client (same `InfluxDBClient` instance used by `sauna_status` / `sauna_control`). Writes are fire-and-forget — a logging failure never blocks the auth response.
+
+**No secrets are logged.** Passwords and tokens are never written. The attempted username on a failed login is logged because it is not a secret and is valuable for audit.
+
+#### Global Point Declaration
+
+```cpp
+Point webaccess("sauna_webaccess");  // alongside existing status/control Points
+```
+
+Tags applied once in `setup()` (same pattern as existing points):
+
+```cpp
+webaccess.addTag("device", g_device_name);
+webaccess.addTag("SSID", WiFi.SSID());
+```
+
+#### Per-Event Tags and Fields
+
+| Tag | Values | Description |
+|---|---|---|
+| `event` | `login_success`, `login_failure`, `logout` | Event type |
+| `username` | string | Username attempted or logged in/out |
+
+| Field | Type | Description |
+|---|---|---|
+| `client_ip` | string | Client IP from `server.client().remoteIP().toString()` |
+| `auth_source` | string | `nvs`, `adapter`, or `none` (on failure, whichever was tried last) |
+
+#### Write Function
+
+```cpp
+void logAccessEvent(const char *event, const char *username,
+                    const char *auth_source) {
+    webaccess.clearFields();
+    webaccess.clearTags();           // clear per-event tags before re-adding
+    webaccess.addTag("device", g_device_name);
+    webaccess.addTag("SSID", WiFi.SSID());
+    webaccess.addTag("event", event);
+    webaccess.addTag("username", username);
+    webaccess.addField("client_ip",
+                       server.client().remoteIP().toString().c_str());
+    webaccess.addField("auth_source", auth_source);
+    client.writePoint(webaccess);   // non-blocking; failure is silent
+}
+```
+
+Called from:
+- `handleAuthLogin()` on success: `logAccessEvent("login_success", username, source)`
+- `handleAuthLogin()` on failure: `logAccessEvent("login_failure", attempted_username, source)`
+- `handleAuthLogout()` on success: `logAccessEvent("logout", username, "none")`
+
+#### Notes
+
+- Tags (`event`, `username`) are chosen over fields for these values because they will be the primary filter dimensions in Flux queries (e.g., "show all failed logins for user X")
+- `clearTags()` + re-adding `device`/`SSID` on each write is required because `event` and `username` vary per call; the base tags are stable across all points
+- The write is immediate rather than batched with the 60-second `writeInflux()` cycle — login events are infrequent and audit-critical; latency to the log matters
+- If InfluxDB is unreachable the event is silently dropped — the auth response is unaffected
+
+---
+
 ## New Files Summary
 
 | File | Location | Purpose |
 |---|---|---|
 | `auth_logic.h` | `src/auth_logic.h` | Portable: session store, token ops, SHA-256 verification, constant-time compare — **natively unit-testable** |
-| `auth.h` | `src/auth.h` | ESP32-specific: NVS user CRUD, external adapter calls, `requireAdmin()` guard |
+| `auth.h` | `src/auth.h` | ESP32-specific: NVS user CRUD, external adapter calls, `requireAdmin()` guard, `logAccessEvent()` |
 | `login.html` | `data/login.html` | Login page served from LittleFS |
 
 All other changes are additive modifications to `src/main.cpp`, `data/index.html`, and `data/config.html`.
+
+Changes to `src/main.cpp`:
+- Add `Point webaccess("sauna_webaccess")` global alongside existing `status`/`control` Points
+- Tag `webaccess` with `device` and `SSID` in `setup()` alongside existing point tagging
 
 ---
 
@@ -435,11 +504,18 @@ All other changes are additive modifications to `src/main.cpp`, `data/index.html
 - Slot-0 delete attempt rejected with error code
 - Slot-0 password change permitted
 
+**InfluxDB access logging (portable logic — InfluxDB client is mocked):**
+- `login_success` event carries correct username and auth_source
+- `login_failure` event carries attempted username and auth_source
+- `logout` event carries username; auth_source is `"none"`
+- InfluxDB write failure does not affect the auth response (fire-and-forget)
+
 ### Not covered by native tests (requires device or mock framework)
 
 - NVS `Preferences` read/write round-trips (`sauna_auth` namespace)
 - External adapter HTTP calls via `HTTPClient`
 - `requireAdmin()` / `server.header()` interaction (requires `WebServer`)
+- `server.client().remoteIP()` client IP extraction (requires live `WebServer` connection)
 
 ### Manual Integration Checklist
 
