@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MCP servers are configured in `.mcp.json`, NOT in `settings.json` under `mcpServers`. Always check `.mcp.json` first when diagnosing MCP issues. After config changes, advise user to restart Claude Code.
 
+- KiCad MCP server (Seeed-Studio) is configured globally in `~/.mcp.json`
+- If MCP server not showing: check `enabledMcpjsonServers` in `settings.json`, verify Python dependencies (`kicad-skip`, NOT `skip-python`), and restart Claude Code
+- Known issue: upstream Seeed-Studio package has broken imports that may need patching
+
 ## Settings File Conventions
 
 When writing permission rules or any paths in `.claude/settings.local.json` or `.claude/settings.json`, always use `~/` for paths under the home directory. Never use `/home/<username>/` or any other absolute path containing a hardcoded username.
@@ -56,6 +60,15 @@ ESP32-based sauna automation system. Monitors temperature/humidity via PT1000 (s
 
 This is an ESP32 embedded project (sauna controller) using Arduino/PlatformIO. Key technologies: C++, ESP32, WebSocket, DHT sensors, KiCad for PCB design. Always consider memory constraints and real-time requirements when suggesting code changes.
 
+## ESP32 Project Conventions
+
+- Platform: ESP32 with web interface (HTML/JSON APIs, WebSocket)
+- Config uses a 3-tier persistence system — check existing config architecture before modifying
+- Sensor code must handle independent failure per sensor (no stale values on disconnect)
+- Logging intervals and sensor read intervals are separate configurable defines
+- Always verify JSON config files have no trailing commas after editing
+- Run `pio run` after any C/C++ changes
+
 ## Coding Conventions
 
 When modifying sensor-related code, ensure stale/disconnected sensor values are handled explicitly (set to NaN or sentinel value, not retained). Always test the disconnect/reconnect path.
@@ -84,6 +97,18 @@ If validation fails, fix the issue before moving on. Do not leave a broken state
 ### JSON Editing Rules
 
 When editing JSON files, always validate syntax after changes — especially check for trailing commas. Use `python3 -m json.tool <file>` to validate.
+
+After editing any JSON file, always validate it (e.g., `python3 -c "import json; json.load(open('file.json'))"`) to catch trailing commas or syntax errors.
+
+## Testing
+
+After implementing features, run the full test suite and report pass/fail counts:
+
+```bash
+pio test -e native
+```
+
+For auth/access changes, verify no privilege escalation in role defaults (default role must be `""`, never `"admin"`).
 
 ## Build & Testing
 
