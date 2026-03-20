@@ -109,6 +109,53 @@ inline void authHexToBytes(const char *hex, uint8_t *out, size_t out_len) {
     }
 }
 
+// ── Password helpers ──────────────────────────────────────────────────────
+inline bool authPasswordLengthOk(const char *pass) {
+    size_t len = 0;
+    while (pass[len]) len++;
+    return len >= AUTH_MIN_PASS_LEN && len <= AUTH_MAX_PASS_LEN;
+}
+
+// Generates a 16-byte random salt, hex-encoded into out_salt[33]
+inline void authGenerateSalt(char *out_salt, AuthRandFn rand_fn) {
+    uint8_t raw[16];
+    rand_fn(raw, 16);
+    authBytesToHex(raw, 16, out_salt);
+}
+
+// Hashes (salt_hex decoded bytes) || (password bytes) using hash_fn
+// Stores result as hex in out_hash[65]
+inline void authHashPassword(const char *password,
+                              const char *salt_hex,
+                              char *out_hash,
+                              AuthHashFn hash_fn) {
+    uint8_t salt_bytes[16];
+    authHexToBytes(salt_hex, salt_bytes, 16);
+    size_t pass_len = strlen(password);
+    // Concatenate salt_bytes + password bytes into a buffer
+    uint8_t buf[16 + AUTH_MAX_PASS_LEN];  // salt(16) + password bytes; authPasswordLengthOk enforces max
+    size_t buf_len = 16 + pass_len;
+    memcpy(buf, salt_bytes, 16);
+    memcpy(buf + 16, password, pass_len);
+    uint8_t digest[32];
+    hash_fn(buf, buf_len, digest);
+    authBytesToHex(digest, 32, out_hash);
+}
+
+// Returns true if hash_fn(salt || password) matches stored_hash_hex
+inline bool authVerifyPassword(const char *password,
+                                const char *salt_hex,
+                                const char *stored_hash_hex,
+                                AuthHashFn hash_fn) {
+    char computed[65];
+    authHashPassword(password, salt_hex, computed, hash_fn);
+    // Constant-time compare on the 64-char hex strings
+    uint8_t diff = 0;
+    for (int i = 0; i < 64; i++)
+        diff |= (uint8_t)computed[i] ^ (uint8_t)stored_hash_hex[i];
+    return diff == 0;
+}
+
 // ── Constant-time token comparison (prevents timing side-channel) ─────────
 // Precondition: both buffers must be null-terminated and at least 65 bytes.
 // Returns false immediately if either is not exactly 64 chars (rejects short
