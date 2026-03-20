@@ -110,8 +110,9 @@ inline void authHexToBytes(const char *hex, uint8_t *out, size_t out_len) {
 }
 
 // ── Constant-time token comparison (prevents timing side-channel) ─────────
-// Both strings must be null-terminated. Returns false immediately if either
-// is not exactly 64 chars — prevents OOB reads on short inputs.
+// Precondition: both buffers must be null-terminated and at least 65 bytes.
+// Returns false immediately if either is not exactly 64 chars (rejects short
+// tokens before the XOR loop — prevents OOB reads on short inputs).
 inline bool authTokenEqual(const char *a, const char *b) {
     size_t la = 0, lb = 0;
     while (la <= 64 && a[la]) la++;
