@@ -1,8 +1,7 @@
 #pragma once
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdbool.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
 // ── Build-flag tunables ────────────────────────────────────────────────────
 #ifndef AUTH_TOKEN_TTL_MS
@@ -18,7 +17,7 @@
 #define AUTH_MIN_PASS_LEN   8
 #endif
 #ifndef AUTH_MAX_PASS_LEN
-#define AUTH_MAX_PASS_LEN   72   // max password accepted — prevents stack overflow in hash buffer
+#define AUTH_MAX_PASS_LEN   72   // max password accepted — bounds the SHA-256 hash buffer (salt[16] + password[MAX])
 #endif
 
 // ── Injectable function types (enables native unit testing) ───────────────
@@ -31,7 +30,7 @@ typedef void (*AuthRandFn)(uint8_t *buf, size_t len);
 struct AuthSession {
     char     token[65];    // 64-char hex + null terminator
     char     username[33]; // max 32 chars + null
-    char     role[17];     // "admin" + null
+    char     role[17];     // max 16 chars + null (e.g. "admin")
     uint32_t issued_ms;    // millis() at issuance — use subtraction for expiry
     bool     active;
 };
