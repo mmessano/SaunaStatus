@@ -189,7 +189,7 @@ The firmware initializes the INA260 in `setup()` and sets `ina260_ok = false` if
 
 ## 8. ERC Lessons Learned
 
-The `docs/kicad/report.txt` is a netlist-generator (not KiCad ERC) report from `generate_schematic.py`. It records 9 errors, all of the same class:
+A netlist-generator report was previously located at `docs/kicad/report.txt` (now removed from the repo). It was produced by `generate_schematic.py` and recorded 9 errors of the same class:
 
 ```
 Error: Cannot add U1 (no footprint assigned).
@@ -199,7 +199,7 @@ Error: Cannot add U2 (no footprint assigned).
 
 **Root cause:** The schematic was generated programmatically by `generate_schematic.py`. At the time this report was produced, footprint properties were either absent or not yet mapped. The `SCHEMATIC_GEN_RULES.md` documents the fix: every symbol must carry a non-empty `Footprint` property at generation time, or `Update PCB from Schematic` will refuse to place the component.
 
-**Status:** The `.kicad_sch` file in the repo does include `Footprint` properties in the embedded lib symbols (e.g., `RF_Module:ESP32-WROOM-32`). The report predates or reflects an intermediate state of the generator. Verify footprints are present before attempting PCB export.
+**Status:** The `.kicad_sch` file in the repo does include `Footprint` properties in the embedded lib symbols (e.g., `RF_Module:ESP32-WROOM-32`). The report reflected an intermediate state of the generator and has been removed. Verify footprints are present before attempting PCB export.
 
 **Other ERC issues documented in SCHEMATIC_GEN_RULES.md** (encountered during schematic generator development and now resolved):
 

@@ -228,6 +228,164 @@ GET http://192.168.1.200/motor?motor=inflow&cmd=close
 
 ---
 
+### `GET /config`
+
+Serves the configuration portal UI from LittleFS.
+
+**Response**
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `text/html`  | `/config.html` from LittleFS (streamed) |
+| `500`  | `text/plain` | `config.html not found — upload filesystem image` |
+
+---
+
+### `GET /config/get`
+
+Returns the current runtime configuration as JSON.
+
+**Response**
+
+| Status | Content-Type       | Body |
+|--------|--------------------|------|
+| `200`  | `application/json` | JSON object (see below) |
+
+**Response Schema**
+
+```json
+{
+  "ceiling_setpoint_f": 160.0,
+  "bench_setpoint_f": 120.0,
+  "ceiling_pid_en": false,
+  "bench_pid_en": false,
+  "sensor_read_interval_ms": 2000,
+  "serial_log_interval_ms": 10000,
+  "static_ip": "192.168.1.200",
+  "device_name": "ESP32"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `ceiling_setpoint_f` | float | Ceiling PID setpoint (°F) |
+| `bench_setpoint_f` | float | Bench PID setpoint (°F) |
+| `ceiling_pid_en` | bool | Ceiling PID enabled |
+| `bench_pid_en` | bool | Bench PID enabled |
+| `sensor_read_interval_ms` | uint | Sensor read / WebSocket broadcast interval (ms) |
+| `serial_log_interval_ms` | uint | Serial status log interval (ms) |
+| `static_ip` | string | Current static IP (active after restart) |
+| `device_name` | string | Current device name (active after restart) |
+
+---
+
+### `POST /config/save`
+
+Validates and applies runtime configuration changes. All fields are optional; only provided fields are changed. Validation is performed atomically — if any field fails, no state is modified.
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+**Parameters**
+
+| Name | Type | Validation | Description |
+|---|---|---|---|
+| `ceiling_setpoint_f` | float | 32.0–300.0 °F | Ceiling PID setpoint |
+| `bench_setpoint_f` | float | 32.0–300.0 °F | Bench PID setpoint |
+| `ceiling_pid_en` | string | `1`/`true`/`on` or `0`/`false`/`off` | Enable/disable ceiling PID |
+| `bench_pid_en` | string | `1`/`true`/`on` or `0`/`false`/`off` | Enable/disable bench PID |
+| `sensor_read_interval_ms` | int | 500–10000 | Sensor read interval (ms) |
+| `serial_log_interval_ms` | int | 1000–60000 | Serial log interval (ms) |
+| `static_ip` | string | valid IPv4 address | New static IP (restart required) |
+| `device_name` | string | 1–24 chars, `[A-Za-z0-9_-]` | New device name (restart required) |
+
+**Response**
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"ok":true,"restart_required":<bool>}` |
+| `400`  | `application/json` | `{"ok":false,"error":"<message>"}` |
+
+`restart_required` is `true` when `static_ip` or `device_name` was changed (the new value takes effect after reboot).
+
+All validated fields are persisted to NVS immediately.
+
+**Example**
+
+```
+POST http://192.168.1.200/config/save
+Content-Type: application/x-www-form-urlencoded
+
+ceiling_setpoint_f=170&sensor_read_interval_ms=3000
+```
+
+---
+
+### `GET /ota/status`
+
+Returns current firmware version and OTA partition information.
+
+**Response**
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | JSON object (see below) |
+
+**Response Schema**
+
+```json
+{
+  "version": "1.0.0",
+  "partition": "ota_0",
+  "boot_failures": 0
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `version` | string | Running firmware version (from `FIRMWARE_VERSION` build flag) |
+| `partition` | string | ESP32 OTA partition label (`ota_0`, `ota_1`, or `unknown`) |
+| `boot_failures` | int | Consecutive failed boots tracked in NVS (`sauna`/`boot_fail`) |
+
+---
+
+### `POST /ota/update`
+
+Initiates an OTA firmware update by downloading and applying a firmware binary described by a JSON manifest URL. Refuses same-version re-flashes and downgrades. Partial-download state is persisted to NVS so an interrupted transfer can be detected on the next boot.
+
+**Query Parameters**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `manifest` | string | Yes | URL of the OTA manifest JSON file |
+
+**Manifest JSON Format**
+
+```json
+{
+  "version": "1.1.0",
+  "url": "http://server/firmware.bin"
+}
+```
+
+**Response**
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"ok":true,"updated":true}` — update applied; device will reboot |
+| `200`  | `application/json` | `{"ok":true,"updated":false,"reason":"current 1.0.0 >= manifest 1.0.0"}` — no update needed |
+| `400`  | `application/json` | `{"ok":false,"error":"missing manifest param"}` |
+| `400`  | `application/json` | `{"ok":false,"error":"invalid manifest: missing version or url"}` |
+| `502`  | `application/json` | `{"ok":false,"error":"manifest fetch failed: HTTP <code>"}` |
+| `500`  | `application/json` | `{"ok":false,"error":"<firmware download/flash error>"}` |
+
+**Example**
+
+```
+POST http://192.168.1.200/ota/update?manifest=http://192.168.1.10/firmware/manifest.json
+```
+
+---
+
 ### `GET /delete/status`
 
 Deletes all data in the `sauna_status` measurement from InfluxDB (time range `1970-01-01` to `2099-12-31`).
@@ -544,50 +702,89 @@ See `GET /history` in Section 2. The device proxies Flux queries to avoid exposi
 
 Settings are applied in order; each layer overrides the previous:
 
-1. **Build flags** (`platformio.ini` `-D` defines): compile-time defaults. Available flags:
-   - `-DDEFAULT_CEILING_SP_F=160.0` — ceiling setpoint in °F (default `160.0`)
-   - `-DDEFAULT_BENCH_SP_F=120.0` — bench setpoint in °F (default `120.0`)
-   - `-DTEMP_LIMIT_C=120.0` — overheat cutoff in °C (default `120.0`)
-   - `-DSTALE_THRESHOLD_MS=10000` — DHT stale timeout in ms (default `10000`)
-   - `-DSERIAL_LOG_INTERVAL_MS=10000` — serial print interval in ms (default `10000`)
+1. **Build flags** (`platformio.ini` `-D` defines): compile-time defaults. All are `#ifndef`-guarded. See full table below.
 
-2. **`/config.json`** (LittleFS): fleet-level defaults applied after build defaults, before NVS. Deploy with `pio run -t uploadfs`. Motor calibration values are intentionally excluded (device-specific).
+2. **`/config.json`** (LittleFS): fleet-level defaults applied after build defaults, before NVS. Deploy with `pio run -t uploadfs`. Motor calibration values (`omx`/`imx`) are intentionally excluded (device-specific). Missing file is silently ignored; parse errors skip the layer.
 
-3. **NVS** (`Preferences`, namespace `sauna`): per-device runtime values written by `/setpoint`, `/pid`, and the motor `setopen` calibration command. NVS wins over all lower layers. A key is only loaded if it already exists (`prefs.isKey()` guard), preventing NVS from reverting a `config.json` value on first boot.
+3. **NVS** (`Preferences`, namespace `sauna`): per-device runtime values written by `/setpoint`, `/pid`, `/motor?cmd=setopen`, and `/config/save`. NVS wins over all lower layers. A key is only loaded if it already exists (`prefs.isKey()` guard), preventing NVS from reverting a `/config.json` value on first boot.
 
 ---
 
-### `/config.json` Format
+### Build Flags (Tier 1)
+
+All can be set in `platformio.ini` under `build_flags` using `-DNAME=value`. Commented-out examples are included in `platformio.ini`.
+
+| Flag | Default | Description |
+|---|---|---|
+| `DEFAULT_CEILING_SP_F` | `160.0f` | Ceiling PID setpoint at boot (°F) |
+| `DEFAULT_BENCH_SP_F` | `120.0f` | Bench PID setpoint at boot (°F) |
+| `TEMP_LIMIT_C` | `120.0f` | Overheat alarm threshold (°C / 248°F) |
+| `SERIAL_LOG_INTERVAL_MS` | `10000` | Serial status log interval (ms) |
+| `STALE_THRESHOLD_MS` | `10000UL` | DHT stale-reading timeout (ms); 0 disables |
+| `INFLUX_WRITE_INTERVAL_MS` | `60000UL` | InfluxDB write interval (ms) |
+| `MQTT_RECONNECT_INTERVAL_MS` | `5000UL` | MQTT reconnect retry interval (ms) |
+| `MOTOR_RPM` | `12` | Stepper motor speed (RPM) |
+| `PID_MIN_STEP_DELTA` | `5` | Minimum PID output delta (steps) to actuate motor |
+| `PID_CONSERVATIVE_THRESHOLD_C` | `10.0f` | Error threshold to switch to conservative PID tuning (°C) |
+| `SETPOINT_MIN_F` | `32.0f` | Minimum valid setpoint (°F) |
+| `SETPOINT_MAX_F` | `300.0f` | Maximum valid setpoint (°F) |
+| `DEFAULT_SENSOR_READ_INTERVAL_MS` | `2000UL` | Default sensor read interval (ms) |
+| `DEFAULT_STATIC_IP` | `"192.168.1.200"` | Default device static IP |
+| `WS_JSON_BUF_SIZE` | `320` | WebSocket JSON output buffer (bytes) |
+| `MQTT_BUF_SIZE` | `512` | MQTT client buffer size (bytes) |
+| `NTP_SERVER_LOCAL` | `"192.168.1.100"` | Primary NTP server |
+| `WIFI_GATEWAY_IP` | `192, 168, 1, 100` | WiFi gateway (IPAddress comma-separated) |
+| `WIFI_DNS_IP` | `8, 8, 8, 8` | Primary DNS (IPAddress comma-separated) |
+| `SENSOR_READ_INTERVAL_MIN_MS` | `500UL` | Minimum sensor read interval (ms) |
+| `SENSOR_READ_INTERVAL_MAX_MS` | `10000UL` | Maximum sensor read interval (ms) |
+| `SERIAL_LOG_INTERVAL_MIN_MS` | `1000UL` | Minimum serial log interval (ms) |
+| `SERIAL_LOG_INTERVAL_MAX_MS` | `60000UL` | Maximum serial log interval (ms) |
+
+---
+
+### `/config.json` Format (Tier 2)
 
 ```json
 {
   "ceiling_setpoint_f": 160.0,
   "bench_setpoint_f": 120.0,
   "ceiling_pid_enabled": false,
-  "bench_pid_enabled": false
+  "bench_pid_enabled": false,
+  "sensor_read_interval_ms": 2000,
+  "serial_log_interval_ms": 10000,
+  "static_ip": "192.168.1.200",
+  "device_name": "sauna"
 }
 ```
 
-| Key                   | Type    | Valid Range     | Description                        |
-|-----------------------|---------|-----------------|------------------------------------|
-| `ceiling_setpoint_f`  | float   | 32.0 – 300.0    | Ceiling PID setpoint in °F         |
-| `bench_setpoint_f`    | float   | 32.0 – 300.0    | Bench PID setpoint in °F           |
-| `ceiling_pid_enabled` | boolean | `true`/`false`  | Initial ceiling PID enable state   |
-| `bench_pid_enabled`   | boolean | `true`/`false`  | Initial bench PID enable state     |
+| Key | Type | Valid Range | Description |
+|---|---|---|---|
+| `ceiling_setpoint_f` | float | 32.0–300.0 °F | Ceiling PID setpoint |
+| `bench_setpoint_f` | float | 32.0–300.0 °F | Bench PID setpoint |
+| `ceiling_pid_enabled` | bool | `true`/`false` | Initial ceiling PID enable state |
+| `bench_pid_enabled` | bool | `true`/`false` | Initial bench PID enable state |
+| `sensor_read_interval_ms` | uint | 500–10000 | Sensor read / WebSocket broadcast interval (ms) |
+| `serial_log_interval_ms` | uint | 1000–60000 | Serial log interval (ms) |
+| `static_ip` | string | valid IPv4 | Device static IP (takes effect after restart) |
+| `device_name` | string | 1–24 chars, `[A-Za-z0-9_-]` | Device name (takes effect after restart) |
 
-Values outside the valid range are silently ignored; the build-flag default remains in effect.
+Values outside the valid range are silently ignored.
 
 ---
 
-### NVS Keys (namespace `sauna`)
+### NVS Keys (Tier 3, namespace `sauna`)
 
-| Key   | Type    | Units | Set By                                                    |
-|-------|---------|-------|-----------------------------------------------------------|
-| `csp` | float   | °C    | `GET /setpoint?ceiling=`, MQTT `sauna/ceiling_setpoint/set` |
-| `bsp` | float   | °C    | `GET /setpoint?bench=`, MQTT `sauna/bench_setpoint/set`   |
-| `cen` | bool    | —     | `GET /pid?ceiling=`, MQTT `sauna/ceiling_pid/set`         |
-| `ben` | bool    | —     | `GET /pid?bench=`, MQTT `sauna/bench_pid/set`             |
-| `omx` | int     | steps | `GET /motor?motor=outflow&cmd=setopen`                    |
-| `imx` | int     | steps | `GET /motor?motor=inflow&cmd=setopen`                     |
+| Key | Type | Units | Description | Written By |
+|---|---|---|---|---|
+| `csp` | float | °C | Ceiling setpoint | `GET /setpoint?ceiling=`, `POST /config/save`, MQTT `sauna/ceiling_setpoint/set` |
+| `bsp` | float | °C | Bench setpoint | `GET /setpoint?bench=`, `POST /config/save`, MQTT `sauna/bench_setpoint/set` |
+| `cen` | bool | — | Ceiling PID enabled | `GET /pid?ceiling=`, `POST /config/save`, MQTT `sauna/ceiling_pid/set` |
+| `ben` | bool | — | Bench PID enabled | `GET /pid?bench=`, `POST /config/save`, MQTT `sauna/bench_pid/set` |
+| `omx` | int | steps | Outflow motor calibrated full-open steps | `GET /motor?motor=outflow&cmd=setopen` |
+| `imx` | int | steps | Inflow motor calibrated full-open steps | `GET /motor?motor=inflow&cmd=setopen` |
+| `sri` | uint | ms | Sensor read interval | `POST /config/save` |
+| `slg` | uint | ms | Serial log interval | `POST /config/save` |
+| `sip` | string | — | Static IP address (restart required) | `POST /config/save` |
+| `dn` | string | — | Device name (restart required) | `POST /config/save` |
 
-All six keys are written together by `savePrefs()`. Setpoints are stored in °C (converted from the °F API values at write time). Default values before any NVS write: `omx=1024`, `imx=1024` (`VENT_STEPS`).
+Setpoints are stored in °C (converted from the °F API values at write time). Default values before any NVS write: `omx=1024`, `imx=1024` (`VENT_STEPS`).
