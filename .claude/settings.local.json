@@ -52,7 +52,11 @@
       "Bash(echo \"INVALID: $f\")",
       "Bash(done)",
       "mcp__kicad__run_drc",
-      "Bash(kicad-cli --version)"
+      "Bash(kicad-cli --version)",
+      "mcp__kicad__get_symbol_details",
+      "mcp__kicad__search_components_by_type",
+      "mcp__kicad__generate_netlist",
+      "mcp__kicad__trace_netlist_connection"
     ]
   },
   "hooks": {
