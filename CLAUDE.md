@@ -151,8 +151,8 @@ Contains:
 | Sensor | Type | Interface | GPIO | Notes |
 |---|---|---|---|---|
 | Stove | PT1000 via MAX31865 | Hardware SPI (VSPI) | CS=GPIO5, SCK=GPIO18, MISO=GPIO19, MOSI=GPIO23 | 3-wire mode; RREF=4300.0Ω, RNOMINAL=1000.0Ω |
-| Ceiling | DHT21 (AM2301) | 1-wire | GPIO16 | 10kΩ pull-up DATA→VCC |
-| Bench | DHT21 (AM2301) | 1-wire | GPIO17 | 10kΩ pull-up DATA→VCC |
+| Ceiling | DHT21 (AM2301) | 1-wire | GPIO16 | External; connects via J4 (4-pin header, Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND); 10kΩ pull-up DATA→VCC |
+| Bench | DHT21 (AM2301) | 1-wire | GPIO17 | External; connects via J5 (4-pin header, Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND); 10kΩ pull-up DATA→VCC |
 | Power | INA260 | I2C | SDA=GPIO4, SCL=GPIO13 | Integrated 2mΩ shunt; no external resistor; optional — gracefully disabled if absent |
 
 SPI pins GPIO18/19/23 are reserved for MAX31865; do not use for other purposes.

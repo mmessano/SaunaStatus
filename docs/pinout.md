@@ -17,12 +17,19 @@
 
 ---
 
-## DHT21 / AM2301 — Temperature & Humidity Sensors
+## DHT21 / AM2301 — Temperature & Humidity Sensors (External, via J4/J5)
 
-| Sensor | ESP32 Pin | Power | Notes |
-|---|---|---|---|
-| Ceiling | GPIO 16 | 3.3V / GND | 10 kΩ pull-up DATA → VCC |
-| Bench | GPIO 17 | 3.3V / GND | 10 kΩ pull-up DATA → VCC |
+The DHT21 sensors are **external packages** connected to the PCB via 4-pin headers (J4 = Ceiling, J5 = Bench).
+
+| Connector | Sensor | Pin 1 | Pin 2 | Pin 3 | Pin 4 |
+|---|---|---|---|---|---|
+| J4 | Ceiling | +3V3 (VDD) | GPIO 16 (DATA) | NC | GND |
+| J5 | Bench | +3V3 (VDD) | GPIO 17 (DATA) | NC | GND |
+
+Connector footprint: `Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical` (2.54 mm pitch, matches DHT21 pinout directly).
+
+- 10 kΩ pull-up DATA → VCC required on each sensor
+- Pin numbering matches AM2301 physical pinout: Pin 1=VDD, Pin 2=DATA, Pin 3=NC, Pin 4=GND
 
 ---
 

@@ -25,7 +25,22 @@
       "Bash(xargs ls:*)",
       "WebSearch",
       "WebFetch(domain:api.github.com)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''mcpServers'''', {}\\), indent=2\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''mcpServers'''', {}\\), indent=2\\)\\)\")",
+      "mcp__kicad__get_schematic_info",
+      "mcp__kicad__get_pcb_statistics",
+      "mcp__kicad__list_schematic_components",
+      "mcp__kicad__list_schematic_nets",
+      "mcp__kicad__get_erc_violations",
+      "mcp__kicad__get_drc_violations",
+      "mcp__kicad__analyze_pcb_nets",
+      "mcp__kicad__run_erc",
+      "mcp__kicad__extract_power_domains",
+      "mcp__kicad__extract_spi_devices",
+      "mcp__kicad__extract_i2c_devices",
+      "mcp__kicad__list_pcb_footprints",
+      "Bash(python3:*)",
+      "Bash(sort -t R -k2 -n)",
+      "Bash(git:*)"
     ]
   },
   "hooks": {
