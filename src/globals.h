@@ -72,6 +72,8 @@ extern char g_db_key[];
 #include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <InfluxDbClient.h>
+#include <Preferences.h>
+extern Preferences prefs;
 extern IPAddress gateway;
 extern IPAddress subnet;
 extern IPAddress primaryDNS;

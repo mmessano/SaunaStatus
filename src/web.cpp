@@ -5,6 +5,7 @@
 #include "secrets.h"
 #include "web.h"
 #include "auth.h"
+#include "influx.h"
 #include "ota_logic.h"
 #include <Arduino.h>
 #include <LittleFS.h>
@@ -40,9 +41,6 @@
 #define WS_JSON_BUF_SIZE 320
 #endif
 
-// Forward declarations for functions still in main.cpp (moved in later tasks)
-extern bool writeInflux();
-extern Preferences prefs;
 
 // Internal helper — not declared in web.h
 static void handleDeleteMeasurement(const char *measurement)
