@@ -56,7 +56,14 @@
       "mcp__kicad__get_symbol_details",
       "mcp__kicad__search_components_by_type",
       "mcp__kicad__generate_netlist",
-      "mcp__kicad__trace_netlist_connection"
+      "mcp__kicad__trace_netlist_connection",
+      "Bash(cp ~/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_sch ~/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_sch.bak)",
+      "Bash(cp ~/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_pcb ~/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_pcb.bak)",
+      "Bash(ls:*)",
+      "Bash(kicad-cli sch:*)",
+      "Bash(1 echo:*)",
+      "Bash(kicad-cli pcb:*)",
+      "Bash(echo \"Exit: $?\")"
     ]
   },
   "hooks": {
