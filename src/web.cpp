@@ -42,7 +42,6 @@
 
 // Forward declarations for functions still in main.cpp (moved in later tasks)
 extern bool writeInflux();
-extern void savePrefs();
 extern Preferences prefs;
 
 // Internal helper — not declared in web.h

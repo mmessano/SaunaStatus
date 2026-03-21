@@ -14,7 +14,6 @@
 
 #ifdef ARDUINO
 
-extern void savePrefs();
 
 void mqttCallback(char *topic, byte *payload, unsigned int len)
 {
