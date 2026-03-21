@@ -32,8 +32,15 @@ extern bool b_cons_mode;
 extern bool overheat_alarm;
 extern float Ceilingpoint;
 extern float Benchpoint;
+extern unsigned short outflow_target;
+extern unsigned short outflow_max_steps;
+extern unsigned short inflow_target;
+extern unsigned short inflow_max_steps;
 
 void setUp(void) {
+    // Clear shared buffer to prevent leftover data from previous tests
+    memset(buf, 0, sizeof(buf));
+
     // Reset globals to safe defaults before each test
     ceiling_temp     = std::numeric_limits<float>::quiet_NaN();
     ceiling_hum      = std::numeric_limits<float>::quiet_NaN();
@@ -52,6 +59,16 @@ void setUp(void) {
     ceiling_output = 0; bench_output = 0;
     ceiling_pid_en = false; bench_pid_en = false;
     c_cons_mode = false; b_cons_mode = false;
+
+    // Reset PID setpoints (used to compute csp/bsp in buildJson)
+    Ceilingpoint = 71.1f;
+    Benchpoint   = 48.9f;
+
+    // Reset motor target positions and calibration (used to compute ofs/ifs percentages)
+    outflow_target    = 0;
+    outflow_max_steps = 1024;
+    inflow_target     = 0;
+    inflow_max_steps  = 1024;
 }
 void tearDown(void) {}
 
