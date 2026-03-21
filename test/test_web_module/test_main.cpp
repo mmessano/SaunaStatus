@@ -6,36 +6,7 @@
 #include "web.h"   // buildJson() is inline here
 
 static char buf[512];
-
-// Extern declarations for globals defined in test_globals.cpp
-extern float ceiling_temp;
-extern float ceiling_hum;
-extern float bench_temp;
-extern float bench_hum;
-extern float stove_temp;
-extern float pwr_bus_V;
-extern float pwr_current_mA;
-extern float pwr_mW;
-extern unsigned long ceiling_last_ok_ms;
-extern unsigned long bench_last_ok_ms;
-extern bool ina260_ok;
-extern unsigned short outflow_pos;
-extern int outflow_dir;
-extern unsigned short inflow_pos;
-extern int inflow_dir;
-extern float ceiling_output;
-extern float bench_output;
-extern bool ceiling_pid_en;
-extern bool bench_pid_en;
-extern bool c_cons_mode;
-extern bool b_cons_mode;
-extern bool overheat_alarm;
-extern float Ceilingpoint;
-extern float Benchpoint;
-extern unsigned short outflow_target;
-extern unsigned short outflow_max_steps;
-extern unsigned short inflow_target;
-extern unsigned short inflow_max_steps;
+// All globals declared via #include "web.h" -> globals.h
 
 void setUp(void) {
     // Clear shared buffer to prevent leftover data from previous tests

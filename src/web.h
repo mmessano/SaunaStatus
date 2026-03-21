@@ -2,42 +2,16 @@
 #pragma once
 
 #include <math.h>
-#include "sauna_logic.h"
+#include "globals.h"    // single source of truth for all extern globals
 
 // Default stale threshold if not set by build flags (matches main.cpp default)
 #ifndef STALE_THRESHOLD_MS
 #define STALE_THRESHOLD_MS 10000UL
 #endif
 
-// ─── Forward declarations needed by buildJson() ───────────────────────────────
-// In ARDUINO builds these are satisfied by globals.h / main.cpp definitions.
-// In native test builds they are satisfied by test_globals.cpp definitions.
 #ifndef ARDUINO
-// Sensor readings
-extern float ceiling_temp, ceiling_hum;
-extern float bench_temp,   bench_hum;
-extern float stove_temp;
-extern float pwr_bus_V, pwr_current_mA, pwr_mW;
-extern unsigned long ceiling_last_ok_ms;
-extern unsigned long bench_last_ok_ms;
-extern bool ina260_ok;
-// Motor state (only pos/dir used by buildJson)
-extern unsigned short outflow_pos;
-extern int outflow_dir;
-extern unsigned short inflow_pos;
-extern int inflow_dir;
-// PID state
-extern bool c_cons_mode, b_cons_mode;
-extern bool ceiling_pid_en, bench_pid_en;
-extern bool overheat_alarm;
-extern float Ceilingpoint, Benchpoint;
-extern float ceiling_output, bench_output;
-// millis() stub (provided by test_globals.cpp in native builds)
+// millis() is Arduino-provided at runtime; native tests stub it in test_globals.cpp
 extern unsigned long millis();
-#else
-// In Arduino builds, pull in all globals and hardware headers
-#include "globals.h"
-#include <WebSocketsServer.h>
 #endif
 
 // ─── Natively testable ─────────────────────────────────────────────────────────
