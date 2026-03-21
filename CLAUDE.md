@@ -142,21 +142,51 @@ All firmware commands default to the `upesy_wroom` environment (board: `esp32doi
 
 ### Firmware: `src/main.cpp`
 
-~1931 lines. Includes `sauna_logic.h`, `auth.h`, and `ota_logic.h` for all portable pure-logic functions. Key sections:
+~870 lines (thin orchestrator after modular refactor). Includes all module headers. Retains:
 
-- Pin mapping comment block (lines 20–56)
-- Sensor, motor, and PID global declarations; auth session/user store globals
+- Pin mapping comment block
+- All global variable **definitions** (sensors, motors, PID, config, auth sessions, runtime state)
 - `loadLittleFSConfig()` — Layer 2 config from `/config.json`
 - `savePrefs()` — writes all runtime state to NVS
-- `checkOverheat()` — safety system; see Safety Systems section
-- `buildJson()` — assembles structs and calls `buildJsonFull()` from sauna_logic.h
-- `writeInflux()` — writes `sauna_status` and `sauna_control` to InfluxDB
-- HTTP handlers: `handleRoot`, `handleLog`, `handleDeleteStatus`, `handleDeleteControl`, `handleHistory`, `handleMotorCmd`, `handlePidToggle`, `handleSetpoint`, `handleConfigSave`, `handleConfigGet`, `handleConfigPage`
-- OTA handlers: `handleOtaStatus`, `handleOtaUpdate`, `otaCheckBootHealth`, `otaMarkBootSuccessful`, `otaCheckPartialDownload`
-- Auth handlers: `handleAuthLoginPage`, `handleAuthLogin`, `handleAuthLogout`, `handleAuthStatus`, `handleUsersGet`, `handleUsersCreate`, `handleUsersDelete`, `handleUsersChangePassword`
-- MQTT: `mqttCallback`, `mqttPublishState`, `mqttPublishDiscovery`, `mqttConnect`
+- OTA helpers: `otaCheckBootHealth`, `otaMarkBootSuccessful`, `otaCheckPartialDownload`
 - `setup()` — initializes all peripherals, WiFi, InfluxDB, HTTP, WebSocket, MQTT; loads config layers in order; seeds emergency admin
-- `loop()` — sensor/PID/WebSocket/MQTT cycle; 60-second InfluxDB write cycle
+- `loop()` — calls `readSensors()`, `checkOverheat()`, PID compute, motor drive, WebSocket/MQTT/InfluxDB cycles
+
+### `src/globals.h`
+
+Single source of truth for all `extern` declarations for globals defined in `main.cpp`. Hardware objects (`CheapStepper`, `MAX31865`, `DHT`, `INA260`, `WebServer`, `WebSocketsServer`, `PubSubClient`, `InfluxDBClient`) wrapped in `#ifdef ARDUINO` guards for native test compatibility.
+
+### `src/sensors.h/.cpp`
+
+Sensor I/O and overheat protection.
+
+- `stoveReading()` — **inline in header** (natively testable); returns `stove_temp` or ceiling/bench average fallback (both air sensors must be valid)
+- `readSensors()` — reads DHT21 ceiling/bench, MAX31865 stove, INA260 power; updates globals; applies `||` rule for `last_ok_ms`
+- `checkOverheat()` — rising-edge state machine; drives both vents fully open on alarm onset; returns `bool` (alarm active); motor drive is inside this function, not in caller
+
+### `src/web.h/.cpp`
+
+All HTTP handlers and WebSocket event handler.
+
+- `buildJson()` — **inline in header** (natively testable); assembles globals into `SensorValues`/`MotorState`/`PIDState` structs and calls `buildJsonFull()`; guards `pwr_*` fields on `ina260_ok`
+- All `handle*()` functions — see HTTP Server table
+- `webSocketEvent()` — WebSocket connection handler
+
+### `src/mqtt.h/.cpp`
+
+MQTT connection lifecycle and publish/subscribe.
+
+- `mqttConnect()` — connects to broker; subscribes to control topics; publishes HA discovery
+- `mqttCallback()` — handles PID enable/disable and setpoint changes
+- `mqttPublishState()` — publishes full JSON to `sauna/state`
+- `mqttPublishDiscovery()` — publishes retained HA MQTT Discovery configs
+
+### `src/influx.h/.cpp`
+
+InfluxDB write operations.
+
+- `writeInflux()` — writes `sauna_status` and `sauna_control` every 60 seconds; NaN fields omitted
+- `logAccessEvent(event, username, auth_source, client_ip)` — writes login/logout/failure to `sauna_webaccess`; `client_ip` provided by caller
 
 ### sauna_logic.h
 
@@ -455,7 +485,7 @@ Tests run natively (no device required) using the Unity framework. Run with:
 pio test -e native
 ```
 
-Total: 8 + 9 + 12 + 35 + 17 = **81 tests** across 5 suites.
+Total: **124 tests** across 7 suites (verified via `pio test -e native`).
 
 ### `test/test_sensor/` — Sensor value formatting and JSON null handling (8 tests)
 
@@ -502,6 +532,27 @@ See **Authentication System** section for the full test list.
 ### `test/test_ota/` — OTA logic (17 tests)
 
 See **OTA Update System** section for the full test list.
+
+### `test/test_sensor_module/` — `stoveReading()` fallback logic (5 tests)
+
+Named `test_sensor_module` (not `test_sensor`) to avoid ambiguity with the existing `test_sensor/` suite. Tests the inline function from `sensors.h` natively.
+
+- stove_temp valid → returns stove_temp
+- stove_temp NaN, ceiling and bench both valid → returns their average
+- stove_temp NaN, only ceiling valid (bench NaN) → returns NaN (both required)
+- stove_temp NaN, only bench valid (ceiling NaN) → returns NaN (both required)
+- stove_temp NaN, ceiling and bench both NaN → returns NaN
+
+### `test/test_web_module/` — `buildJson()` struct assembly (6 tests)
+
+Tests the inline `buildJson()` from `web.h` natively (no hardware dependencies).
+
+- `buildJson()` produces valid JSON (starts `{`, ends `}`)
+- `buildJson()` populates all 23 required keys
+- Stale ceiling sensor → `clt` and `clh` are null, `cst` is 1
+- Stale bench sensor → `d5t` and `d5h` are null, `bst` is 1
+- NaN stove → `tct` is null
+- INA260 absent (`ina260_ok = false`) → `pvolt`, `pcurr`, `pmw` are null
 
 ## Web UI
 
@@ -674,7 +725,7 @@ All JSON API responses follow these patterns:
 
 ## Unit Tests — Complete Suite
 
-Total: 29 auth + 17 OTA + 8 sensor + 9 config + 12 websocket = **75 tests** across 5 suites.
+Total: **124 tests** across 7 suites (verified via `pio test -e native`). Includes `test_sensor_module` (5 tests for `stoveReading()`) and `test_web_module` (6 tests for `buildJson()`) added during the modular refactor.
 
 ### `test/test_auth/` — Auth system (35 tests)
 
