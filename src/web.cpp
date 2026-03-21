@@ -663,14 +663,16 @@ void handleAuthLogin() {
                                         &g_auth_users, mbedHashFn);
     const char *srcStr = (out.source == AUTH_SRC_ADAPTER) ? "adapter" : "nvs";
     if (out.result != LOGIN_OK) {
-        logAccessEvent("login_failure", username, srcStr);
+        logAccessEvent("login_failure", username, srcStr,
+                       server.client().remoteIP().toString().c_str());
         server.send(401, "application/json", "{\"error\":\"invalid credentials\"}");
         return;
     }
     char token[65];
     authIssueToken(g_auth_sessions, AUTH_MAX_SESSIONS,
                    username, out.role, millis(), espRandFn, token);
-    logAccessEvent("login_success", username, srcStr);
+    logAccessEvent("login_success", username, srcStr,
+                   server.client().remoteIP().toString().c_str());
     StaticJsonDocument<192> resp;
     resp["token"]      = token;
     resp["expires_in"] = AUTH_TOKEN_TTL_MS / 1000;
@@ -688,7 +690,8 @@ void handleAuthLogout() {
     String auth = server.header("Authorization");
     String token = auth.substring(7);
     authInvalidateToken(g_auth_sessions, AUTH_MAX_SESSIONS, token.c_str());
-    logAccessEvent("logout", username, "none");
+    logAccessEvent("logout", username, "none",
+                   server.client().remoteIP().toString().c_str());
     server.send(200, "application/json", "{\"ok\":true}");
 }
 

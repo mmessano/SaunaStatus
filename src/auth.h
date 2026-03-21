@@ -1,5 +1,6 @@
 #pragma once
 #include "auth_logic.h"
+#include "influx.h"
 #include <Preferences.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
@@ -191,18 +192,4 @@ inline const AuthSession *requireAdmin() {
     return s;
 }
 
-// ── InfluxDB access logging ───────────────────────────────────────────────
-inline void logAccessEvent(const char *event,
-                            const char *username,
-                            const char *auth_source) {
-    String ip = server.client().remoteIP().toString();
-    AuthLogEvent ev = authBuildLogEvent(event, username, ip.c_str(), auth_source);
-    webaccess.clearFields();
-    webaccess.clearTags();
-    webaccess.addTag("device",   g_device_name);
-    webaccess.addTag("event",    ev.event);
-    webaccess.addTag("username", ev.username);
-    webaccess.addField("client_ip",   ev.client_ip);
-    webaccess.addField("auth_source", ev.auth_source);
-    influxClient.writePoint(webaccess);  // fire-and-forget
-}
+// logAccessEvent() is now in influx.h — included above
