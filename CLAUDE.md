@@ -142,19 +142,21 @@ All firmware commands default to the `upesy_wroom` environment (board: `esp32doi
 
 ### Firmware: `src/main.cpp`
 
-~1718 lines. Includes `sauna_logic.h` for all portable pure-logic functions. Key sections:
+~1931 lines. Includes `sauna_logic.h`, `auth.h`, and `ota_logic.h` for all portable pure-logic functions. Key sections:
 
-- Pin mapping comment block (lines 20–46)
-- Sensor, motor, and PID global declarations
+- Pin mapping comment block (lines 20–56)
+- Sensor, motor, and PID global declarations; auth session/user store globals
 - `loadLittleFSConfig()` — Layer 2 config from `/config.json`
 - `savePrefs()` — writes all runtime state to NVS
 - `checkOverheat()` — safety system; see Safety Systems section
 - `buildJson()` — assembles structs and calls `buildJsonFull()` from sauna_logic.h
 - `writeInflux()` — writes `sauna_status` and `sauna_control` to InfluxDB
-- HTTP handlers: `handleRoot`, `handleLog`, `handleDeleteStatus`, `handleDeleteControl`, `handleHistory`, `handleMotorCmd`, `handlePidToggle`, `handleSetpoint`, `handleConfigSave`
+- HTTP handlers: `handleRoot`, `handleLog`, `handleDeleteStatus`, `handleDeleteControl`, `handleHistory`, `handleMotorCmd`, `handlePidToggle`, `handleSetpoint`, `handleConfigSave`, `handleConfigGet`, `handleConfigPage`
+- OTA handlers: `handleOtaStatus`, `handleOtaUpdate`, `otaCheckBootHealth`, `otaMarkBootSuccessful`, `otaCheckPartialDownload`
+- Auth handlers: `handleAuthLoginPage`, `handleAuthLogin`, `handleAuthLogout`, `handleAuthStatus`, `handleUsersGet`, `handleUsersCreate`, `handleUsersDelete`, `handleUsersChangePassword`
 - MQTT: `mqttCallback`, `mqttPublishState`, `mqttPublishDiscovery`, `mqttConnect`
-- `setup()` — initializes all peripherals, WiFi, InfluxDB, HTTP, WebSocket, MQTT; loads config layers in order
-- `loop()` — 2-second sensor/PID/WebSocket/MQTT cycle; 60-second InfluxDB write cycle
+- `setup()` — initializes all peripherals, WiFi, InfluxDB, HTTP, WebSocket, MQTT; loads config layers in order; seeds emergency admin
+- `loop()` — sensor/PID/WebSocket/MQTT cycle; 60-second InfluxDB write cycle
 
 ### sauna_logic.h
 
@@ -269,18 +271,31 @@ Stale detection does not affect PID computation — that relies on NaN checking 
 
 ### HTTP Server (port 80)
 
-| Route | Handler | Description |
-|---|---|---|
-| `GET /` | `handleRoot` | Serves `index.html` from LittleFS |
-| `GET /log` | `handleLog` | Triggers immediate InfluxDB write |
-| `GET /delete/status` | `handleDeleteStatus` | Deletes all `sauna_status` data from InfluxDB |
-| `GET /delete/control` | `handleDeleteControl` | Deletes all `sauna_control` data from InfluxDB |
-| `GET /history?range=Xh` | `handleHistory` | Proxies Flux query; returns CSV of ceiling/bench/stove temps (default 1h; alphanumeric range only) |
-| `GET /setpoint?ceiling=F&bench=F` | `handleSetpoint` | Sets PID setpoints in °F (32–300); persists to NVS |
-| `GET /pid?ceiling=0\|1&bench=0\|1` | `handlePidToggle` | Enables/disables PID controllers; persists to NVS |
-| `GET /motor?motor=outflow\|inflow&cmd=CMD&steps=N` | `handleMotorCmd` | Motor control |
-| `POST /config/save` | `handleConfigSave` | Updates runtime config (setpoints, PID flags, intervals, IP, device name); persists to NVS |
-| `GET /config` | `handleConfigGet` | Returns current runtime config as JSON |
+All state-mutating routes require `Authorization: Bearer <token>`. Unauthenticated requests return `401 application/json`.
+
+| Route | Method | Auth | Handler | Description |
+|---|---|---|---|---|
+| `/` | GET | None | `handleRoot` | Serves `index.html` from LittleFS |
+| `/log` | GET | Bearer | `handleLog` | Triggers immediate InfluxDB write |
+| `/delete/status` | GET | Bearer | `handleDeleteStatus` | Deletes all `sauna_status` data from InfluxDB |
+| `/delete/control` | GET | Bearer | `handleDeleteControl` | Deletes all `sauna_control` data from InfluxDB |
+| `/history?range=Xh` | GET | None | `handleHistory` | Proxies Flux query; returns CSV of ceiling/bench/stove temps (default 1h; alphanumeric range only) |
+| `/setpoint?ceiling=F&bench=F` | GET | Bearer | `handleSetpoint` | Sets PID setpoints in °F (32–300); persists to NVS |
+| `/pid?ceiling=0\|1&bench=0\|1` | GET | Bearer | `handlePidToggle` | Enables/disables PID controllers; persists to NVS |
+| `/motor?motor=outflow\|inflow&cmd=CMD&steps=N` | GET | Bearer | `handleMotorCmd` | Motor control |
+| `/config` | GET | None | `handleConfigPage` | Serves `config.html` from LittleFS |
+| `/config/get` | GET | Bearer | `handleConfigGet` | Returns current runtime config as JSON |
+| `/config/save` | POST | Bearer | `handleConfigSave` | Updates runtime config (setpoints, PID flags, intervals, IP, device name); persists to NVS |
+| `/ota/status` | GET | Bearer | `handleOtaStatus` | Returns `{"version","partition","boot_failures"}` |
+| `/ota/update?manifest=<url>` | POST | Bearer | `handleOtaUpdate` | Manifest-based OTA update; reboots on success |
+| `/auth/login` | GET | None | `handleAuthLoginPage` | Serves `login.html` from LittleFS |
+| `/auth/login` | POST | None | `handleAuthLogin` | JSON login; returns `{"token","expires_in","username","role"}` |
+| `/auth/logout` | POST | Bearer | `handleAuthLogout` | Invalidates token; logs to InfluxDB |
+| `/auth/status` | GET | Bearer | `handleAuthStatus` | Returns `{"valid":true,"username","role"}` |
+| `/users` | GET | Bearer | `handleUsersGet` | Lists all users |
+| `/users` | POST | Bearer | `handleUsersCreate` | Creates user (JSON body) |
+| `/users` | DELETE | Bearer | `handleUsersDelete` | Deletes user by `?username=` (slot 0 protected) |
+| `/users` | PUT | Bearer | `handleUsersChangePassword` | Changes password (`?username=` + JSON body) |
 
 Motor `cmd` values: `cw`, `ccw`, `open`, `close`, `third`, `twothird`, `stop`, `zero` (mark closed), `setopen` (mark fully open + persist). Default `steps=64`; clamped to `[1, VENT_STEPS*4]`.
 
@@ -440,6 +455,8 @@ Tests run natively (no device required) using the Unity framework. Run with:
 pio test -e native
 ```
 
+Total: 8 + 9 + 12 + 35 + 17 = **81 tests** across 5 suites.
+
 ### `test/test_sensor/` — Sensor value formatting and JSON null handling (8 tests)
 
 - `test_fmtVal_nan` — NaN serializes as `"null"`
@@ -478,6 +495,14 @@ pio test -e native
 - `test_staleness_one_over_threshold_is_stale` — diff > threshold IS stale
 - `test_staleness_threshold_zero_never_stale` — threshold=0 never stale regardless of timestamps
 
+### `test/test_auth/` — Auth system (35 tests)
+
+See **Authentication System** section for the full test list.
+
+### `test/test_ota/` — OTA logic (17 tests)
+
+See **OTA Update System** section for the full test list.
+
 ## Web UI
 
 `data/index.html` — single-file HTML/JS dashboard served from LittleFS at `GET /`. Must be uploaded separately from the firmware:
@@ -487,6 +512,187 @@ pio run -t uploadfs
 ```
 
 The UI connects to the WebSocket server at `ws://<device-ip>:81` and renders live readings. It uses Chart.js (CDN) for the temperature trend chart. The `/history` endpoint feeds the chart with 5-minute aggregated temperature data. Motor control buttons and PID enable toggles are included.
+
+## Authentication System
+
+All state-mutating HTTP routes are protected by `requireAdmin()` — a Bearer token check in `auth.h`. The token must be presented as `Authorization: Bearer <token>` in the request header. Unauthenticated requests receive `401 application/json {"error":"unauthorized"}`. The server collects the `Authorization` header via `server.collectHeaders()` in `setup()`.
+
+### auth_logic.h — Portable auth logic (no Arduino deps)
+
+Header-only pure-C++ file. Testable natively. Contains:
+- `AuthSession` (token + username + role + issued_ms) — 10 concurrent sessions (`AUTH_MAX_SESSIONS`)
+- `AuthUserStore` — up to 5 users (`AUTH_MAX_USERS`), each with name/hash/salt/role
+- `authIssueToken()` — generates 32-byte random token (hex-encoded, 64 chars), evicts oldest/expired slot if full
+- `authValidateToken()` — constant-time token match; expiry uses unsigned subtraction (rollover-safe at `uint32_t` boundary)
+- `authHashPassword()` — SHA-256(salt_bytes || password_bytes); stored as hex
+- `authVerifyPassword()` — constant-time compare to prevent timing side-channel
+- `authAttemptLogin()` — adapter-first fallback orchestration (see below)
+- `authFindEvictSlot()` — prefers expired/inactive slots over oldest-valid eviction
+
+### Token TTL and auth constants
+
+All tunable via build flags (`-D` in `platformio.ini`):
+
+| Define | Default | Description |
+|---|---|---|
+| `AUTH_TOKEN_TTL_MS` | `3600000UL` (1 hour) | Session token time-to-live |
+| `AUTH_MAX_SESSIONS` | `10` | Concurrent session slots |
+| `AUTH_MAX_USERS` | `5` | Maximum stored users |
+| `AUTH_MIN_PASS_LEN` | `8` | Minimum password length |
+| `AUTH_MAX_PASS_LEN` | `72` | Maximum password length (bounds SHA-256 buffer) |
+| `OTA_MAX_BOOT_FAILURES` | `3` | Consecutive boot failures before rollback |
+
+### NVS user store
+
+Namespace: `sauna_auth`. Users stored as `u0_name`, `u0_hash`, `u0_salt`, `u0_role` … `u4_*`. `authNvsLoad()` breaks on first missing `u{i}_name` — orphaned hash/salt/role keys beyond that are never read. `authNvsSave()` clears name keys for removed users to prevent orphans.
+
+External adapter config stored as `db_url` and `db_key` keys in the same namespace.
+
+### Emergency admin seeding
+
+`authSeedEmergencyAdmin()` runs once in `setup()` after WiFi connects (for RNG entropy). It writes the first user only if `u0_name` is absent from NVS. Credentials come from `AUTH_ADMIN_USER` and `AUTH_ADMIN_PASS` in `secrets.h` — both are required `#define`s enforced by `#error` guards in `main.cpp`. Change the password immediately after first boot.
+
+### External adapter (optional)
+
+If `g_db_url` is non-empty, login attempts go through an external HTTP adapter at `<db_url>/validate` with Bearer `g_db_key`. Adapter returns `{"valid":true,"role":"admin"}`. Fallback behavior:
+- `ADAPTER_OK` → token issued, NVS not consulted
+- `ADAPTER_REJECTED` → login rejected, NVS not consulted (deliberate rejection takes precedence)
+- `ADAPTER_ERROR` (network/timeout) → falls through to NVS
+
+Role from adapter is used as-is; empty role is stored verbatim — never default to a privilege level when the adapter doesn't specify one.
+
+### Auth HTTP routes
+
+| Route | Method | Auth | Description |
+|---|---|---|---|
+| `/auth/login` | GET | None | Serves `login.html` from LittleFS |
+| `/auth/login` | POST | None | JSON body `{"username","password"}`; returns `{"token","expires_in","username","role"}` |
+| `/auth/logout` | POST | Bearer | Invalidates current token; logs event to InfluxDB |
+| `/auth/status` | GET | Bearer | Returns `{"valid":true,"username","role"}` |
+| `/users` | GET | Bearer | Lists all users (username, role, protected flag) |
+| `/users` | POST | Bearer | Creates user; JSON body `{"username","password","role"}` |
+| `/users` | DELETE | Bearer | Deletes user by `?username=`; slot 0 (emergency admin) is protected |
+| `/users` | PUT | Bearer | Changes password; `?username=` + JSON body `{"password"}` |
+
+### Access logging (InfluxDB)
+
+Every login, logout, and failure is written to the `sauna_webaccess` measurement. Fields: `client_ip`, `auth_source`. Tags: `device`, `event`, `username`. Written fire-and-forget (`logAccessEvent()` in `auth.h`).
+
+### Security headers
+
+`authAddSecurityHeaders()` sends `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff` on all auth-related responses.
+
+## OTA Update System
+
+### ota_logic.h — Portable OTA logic (no Arduino deps)
+
+Header-only pure-C++ file. Testable natively. Contains:
+- `FirmwareVersion` — major/minor/patch struct; `parseVersion()` validates `"X.Y.Z"` format (rejects trailing garbage, negative values, components >255)
+- `compareVersion()` / `isUpdateAvailable()` — refuses downgrades and same-version re-flashes
+- `OtaManifest` — `{version, url, md5}`; parsed via lightweight string extractor (no ArduinoJson dep)
+- `OtaDownloadState` / `isOtaIncomplete()` — detects power-failure mid-flash via NVS flags
+- `shouldRollback(boot_failures, max_failures)` — threshold comparison for boot health
+
+### OTA HTTP routes
+
+| Route | Method | Auth | Description |
+|---|---|---|---|
+| `/ota/status` | GET | Bearer | Returns `{"version","partition","boot_failures"}` |
+| `/ota/update?manifest=<url>` | POST | Bearer | Fetches manifest JSON, checks version, streams firmware binary |
+
+OTA update flow: fetch manifest → parse version → compare to `FIRMWARE_VERSION` → fetch binary → `Update.begin(size)` → set MD5 if present → stream write → `Update.end(true)` → reboot.
+
+### Boot health / rollback
+
+`otaCheckBootHealth()` runs at the very top of `setup()`, before LittleFS or NVS config load. It increments `boot_fail` in NVS on every boot. `otaMarkBootSuccessful()` resets `boot_fail` to 0 and calls `esp_ota_mark_app_valid_cancel_rollback()` once WiFi connects. If `boot_fail >= OTA_MAX_BOOT_FAILURES`, calls `esp_ota_mark_app_invalid_rollback_and_reboot()`. The firmware binary in `platformio.ini` uses a custom OTA partition table (`partitions_ota.csv`).
+
+### Partial download detection
+
+`otaCheckPartialDownload()` reads `ota_ip` / `ota_exp` / `ota_wrt` from NVS. A partial write is logged at startup but does not block normal operation — the bootloader ignores unvalidated OTA slots.
+
+### NVS keys used by OTA (namespace `sauna`)
+
+| Key | Type | Stores |
+|---|---|---|
+| `boot_fail` | int | Consecutive boot failure count |
+| `ota_ip` | bool | OTA download in-progress flag |
+| `ota_exp` | uint | Expected firmware bytes |
+| `ota_wrt` | uint | Bytes written so far |
+
+### Firmware version
+
+`FIRMWARE_VERSION` is defined in `platformio.ini` via `-DFIRMWARE_VERSION=\"1.0.0\"`. Update this string for every release or OTA will refuse re-flashing the same version.
+
+## LittleFS Layout
+
+Files served from `data/` directory, uploaded via `pio run -t uploadfs`.
+
+| File | Served at | Description |
+|---|---|---|
+| `index.html` | `GET /` | Main dashboard |
+| `login.html` | `GET /auth/login` | Login page |
+| `config.html` | `GET /config` | Configuration portal page |
+| `config.json` | Layer 2 config | Fleet defaults (read by `loadLittleFSConfig()`) |
+
+`Cache-Control: no-store` is sent on all HTML pages. LittleFS is mounted with `LittleFS.begin(true)` — the `true` argument formats the partition if mount fails (first boot).
+
+## platformio.ini Structure
+
+Two environments:
+- `upesy_wroom` (default) — ESP32 targets; board `esp32doit-devkit-v1`; filesystem `littlefs`; partition table `partitions_ota.csv`; `monitor_speed 115200`
+- `native` — native unit tests only; `std=c++14`; `test_build_src = false`
+
+`extra_scripts = scripts/upload_fs.py` hooks the filesystem upload. `targets = upload, uploadfs` makes both firmware and filesystem upload by default.
+
+Library dependencies (`lib_deps` in `upesy_wroom`): Adafruit Unified Sensor, DHT sensor library, WebSockets (links2004), ESP8266 Influxdb (tobiasschuerg), Adafruit MAX31865, QuickPID (dlloydev), CheapStepper (tyhenry), PubSubClient (knolleary), Adafruit INA260, ArduinoJson (bblanchon). All pinned by semver range.
+
+## NTP Time Sync
+
+Time zone: `CST6CDT,M3.2.0,M11.1.0` (US Central). NTP uses `timeSync()` from the InfluxDB client library. On first boot, tries up to 3 server pairs in sequence: local router (`NTP_SERVER_LOCAL`) + `pool.ntp.org` first, then public fallbacks. Succeeds if `tm_year > 120` (year > 2020). If sync fails after 3 attempts, timestamps are wrong but operation continues; a warning is printed to serial.
+
+## WiFi Connection
+
+WiFi uses a static IP (from `g_static_ip_str`). No reconnect logic in `loop()` — if WiFi drops, the device does not attempt to reconnect; a reboot is required. MQTT reconnect is handled independently via `MQTT_RECONNECT_INTERVAL_MS` retry in `loop()`.
+
+## HTTP Response Conventions
+
+All JSON API responses follow these patterns:
+
+| Outcome | Status | Body pattern |
+|---|---|---|
+| Success (mutation) | 200 | `{"ok":true}` or `{"ok":true,"restart_required":false}` |
+| Success (data) | 200 | `application/json` with data fields |
+| Bad request / validation | 400 | `{"ok":false,"error":"<message>"}` or `{"error":"<message>"}` |
+| Unauthorized | 401 | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+| Forbidden (slot 0) | 403 | `{"error":"cannot delete emergency admin"}` |
+| Not found | 404 | `{"error":"user not found"}` |
+| Conflict | 409 | `{"error":"user limit reached"}` or `{"error":"username taken"}` |
+| Upstream failure | 502 | `{"ok":false,"error":"..."}` or plain text |
+| Server error | 500 | `{"ok":false,"error":"..."}` or plain text |
+
+`handleConfigSave()` uses `goto send_error` to jump from any validation failure to a single error-emit block. This ensures no partial state is applied before a validation error is returned.
+
+## Unit Tests — Complete Suite
+
+Total: 29 auth + 17 OTA + 8 sensor + 9 config + 12 websocket = **75 tests** across 5 suites.
+
+### `test/test_auth/` — Auth system (35 tests)
+
+- Hex encode/decode: `test_bytes_to_hex`, `test_hex_to_bytes`
+- Constant-time comparison: `test_token_equal_same/different/empty_vs_nonempty`
+- Token operations: `test_short_token_rejected`, `test_issue_token_populates_slot`, `test_issued_token_validates`, `test_wrong_token_rejected`, `test_expired_token_rejected`, `test_expiry_across_millis_rollover`, `test_logout_invalidates_token`, `test_expired_slot_reclaimed_before_valid`, `test_oldest_valid_evicted_when_all_full`
+- Password: `test_generate_salt_length`, `test_hash_and_verify_correct_password`, `test_wrong_password_rejected`, `test_empty/below/at/above/max_len_*`
+- User store: `test_add_user_and_find`, `test_max_users_enforced`, `test_delete_user`, `test_slot0_delete_rejected`, `test_slot0_password_change_permitted`, `test_delete_non_slot0_preserves_slot0_protection`, `test_password_below_min_rejected_on_add`
+- Login fallback: `test_adapter_success_issues_token`, `test_adapter_rejection_no_nvs_fallthrough`, `test_adapter_error_falls_through_to_nvs_success/failure`, `test_no_adapter_configured_uses_nvs_directly`
+- Logging: `test_influx_log_event_fields`
+
+### `test/test_ota/` — OTA logic (17 tests)
+
+- Version parsing: valid, empty, null, malformed, zeros
+- Comparison: newer/older patch, equal, newer minor/major
+- Manifest: valid, missing url, missing version, md5 optional, no update needed (same/older), update available
+- Rollback: below/at/above threshold, zero failures
+- Partial download: incomplete, complete, not started, zero expected
 
 ## Alternative Firmware
 
@@ -513,7 +719,11 @@ KiCad schematics: `docs/kicad/`
 #define MQTT_PORT        1883
 #define MQTT_USER        "..."   // set to "" to connect without credentials
 #define MQTT_PASS        "..."
+#define AUTH_ADMIN_USER  "admin" // emergency admin seeded on first boot
+#define AUTH_ADMIN_PASS  "..."   // min 8 chars; change immediately after first boot
 ```
+
+Both `AUTH_ADMIN_USER` and `AUTH_ADMIN_PASS` are enforced by `#error` guards at the top of `main.cpp` — omitting either causes a compile error. See also **Credentials & Secrets — Updated** section below for details.
 
 ## Lessons Learned
 
