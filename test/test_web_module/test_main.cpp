@@ -88,6 +88,7 @@ void test_stale_ceiling_gives_null(void) {
     bench_hum  = 45.0f;
     buildJson(buf, sizeof(buf));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"clt\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"clh\":null"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"cst\":1"));
     // bench unaffected
     TEST_ASSERT_NULL(strstr(buf, "\"d5t\":null"));
@@ -104,6 +105,7 @@ void test_stale_bench_gives_null(void) {
     ceiling_hum  = 50.0f;
     buildJson(buf, sizeof(buf));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"d5t\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"d5h\":null"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"bst\":1"));
     TEST_ASSERT_NULL(strstr(buf, "\"clt\":null"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"cst\":0"));
