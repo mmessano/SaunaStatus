@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "datasheets": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "~/Documents/PlatformIO/Projects/SaunaStatus/docs/datasheets"
+      ]
+    }
+  }
+}

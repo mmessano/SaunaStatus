@@ -67,7 +67,8 @@
       "mcp__datasheets__list_directory_with_sizes",
       "Bash(~/.platformio/penv/bin/pio test:*)",
       "Bash(~/.platformio/penv/bin/pio run:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(grep -v \"^$\")"
     ]
   },
   "enabledMcpjsonServers": [
