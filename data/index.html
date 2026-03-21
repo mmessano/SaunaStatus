@@ -28,8 +28,29 @@
     #authBar { position: fixed; top: 10px; right: 16px; font-size: 0.8em; color: #a0aec0; z-index: 100; }
     #authBar button { padding: 4px 14px; background: #4a5568; color: #eee; border: none;
                       border-radius: 6px; cursor: pointer; font-size: 0.85em; margin-left: 8px; }
+    .auth-required { display: none; }
+    body.authenticated .auth-required { display: block !important; }
+    body.authenticated #login-panel { display: none !important; }
   </style>
 </head><body>
+  <!-- Login panel — shown when unauthenticated -->
+  <div id="login-panel" style="position:fixed; top:0; left:0; right:0; bottom:0;
+       background:rgba(0,0,0,0.85); z-index:1000; display:flex; align-items:center; justify-content:center;">
+    <div style="background:#1e1e2e; border-radius:12px; padding:2rem; width:320px; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <h2 style="color:#cdd6f4; margin:0 0 1.5rem; text-align:center;">Sauna Status</h2>
+      <input id="login-user" type="text" placeholder="Username"
+             style="width:100%; padding:0.6rem; margin-bottom:0.75rem; border-radius:6px; border:1px solid #45475a; background:#313244; color:#cdd6f4; box-sizing:border-box;">
+      <input id="login-pass" type="password" placeholder="Password"
+             onkeydown="if(event.key==='Enter') doLogin()"
+             style="width:100%; padding:0.6rem; margin-bottom:1rem; border-radius:6px; border:1px solid #45475a; background:#313244; color:#cdd6f4; box-sizing:border-box;">
+      <button onclick="doLogin()"
+              style="width:100%; padding:0.75rem; background:#89b4fa; border:none; border-radius:6px; color:#1e1e2e; font-weight:bold; cursor:pointer;">
+        Sign In
+      </button>
+      <p id="login-error" style="color:#f38ba8; font-size:0.85rem; margin:0.75rem 0 0; display:none;"></p>
+    </div>
+  </div>
+
   <div id="authBar"><span id="authUser"></span><button onclick="logout()">Logout</button></div>
   <h1>Sauna Status</h1>
   <div id="envBanner">
@@ -91,54 +112,58 @@
       <div class="unit">&deg;F</div>
     </div>
     <div class="section">Control</div>
-    <div class="card">
-      <h2>Outflow Motor</h2>
-      <div class="reading" id="ofs">--</div>
-      <div class="unit" id="ofd">--</div>
-      <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;">
-        <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('outflow','ccw')">&larr; CCW</button>
-        <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('outflow','cw')">CW &rarr;</button>
-      </div>
-      <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
-        <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('outflow','zero')">Set Closed</button>
-        <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('outflow','setopen')">Set Open</button>
-      </div>
-      <div style="margin-top:5px;display:flex;gap:4px;justify-content:center;">
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;background:#4a5568;" onclick="motorCmd('outflow','close')">Closed</button>
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('outflow','third')">&frac13;</button>
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('outflow','twothird')">&frac23;</button>
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('outflow','open')">Open</button>
-      </div>
-      <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
-        <button class="btn" style="padding:5px 12px;font-size:0.82em;background:#718096;" onclick="motorCmd('outflow','stop')">Stop</button>
-      </div>
-      <div style="margin-top:7px;font-size:0.78em;color:#a0aec0;">
-        Steps&nbsp;<input id="oSteps" type="number" value="64" min="1" max="4096" style="width:52px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:2px 4px;font-size:1em;text-align:center;">
+    <div class="auth-required">
+      <div class="card">
+        <h2>Outflow Motor</h2>
+        <div class="reading" id="ofs">--</div>
+        <div class="unit" id="ofd">--</div>
+        <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;">
+          <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('outflow','ccw')">&larr; CCW</button>
+          <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('outflow','cw')">CW &rarr;</button>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
+          <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('outflow','zero')">Set Closed</button>
+          <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('outflow','setopen')">Set Open</button>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:4px;justify-content:center;">
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;background:#4a5568;" onclick="motorCmd('outflow','close')">Closed</button>
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('outflow','third')">&frac13;</button>
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('outflow','twothird')">&frac23;</button>
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('outflow','open')">Open</button>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
+          <button class="btn" style="padding:5px 12px;font-size:0.82em;background:#718096;" onclick="motorCmd('outflow','stop')">Stop</button>
+        </div>
+        <div style="margin-top:7px;font-size:0.78em;color:#a0aec0;">
+          Steps&nbsp;<input id="oSteps" type="number" value="64" min="1" max="4096" style="width:52px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:2px 4px;font-size:1em;text-align:center;">
+        </div>
       </div>
     </div>
-    <div class="card">
-      <h2>Inflow Motor</h2>
-      <div class="reading" id="ifs">--</div>
-      <div class="unit" id="ifd">--</div>
-      <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;">
-        <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('inflow','ccw')">&larr; CCW</button>
-        <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('inflow','cw')">CW &rarr;</button>
-      </div>
-      <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
-        <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('inflow','zero')">Set Closed</button>
-        <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('inflow','setopen')">Set Open</button>
-      </div>
-      <div style="margin-top:5px;display:flex;gap:4px;justify-content:center;">
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;background:#4a5568;" onclick="motorCmd('inflow','close')">Closed</button>
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('inflow','third')">&frac13;</button>
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('inflow','twothird')">&frac23;</button>
-        <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('inflow','open')">Open</button>
-      </div>
-      <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
-        <button class="btn" style="padding:5px 12px;font-size:0.82em;background:#718096;" onclick="motorCmd('inflow','stop')">Stop</button>
-      </div>
-      <div style="margin-top:7px;font-size:0.78em;color:#a0aec0;">
-        Steps&nbsp;<input id="iSteps" type="number" value="64" min="1" max="4096" style="width:52px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:2px 4px;font-size:1em;text-align:center;">
+    <div class="auth-required">
+      <div class="card">
+        <h2>Inflow Motor</h2>
+        <div class="reading" id="ifs">--</div>
+        <div class="unit" id="ifd">--</div>
+        <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;">
+          <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('inflow','ccw')">&larr; CCW</button>
+          <button class="btn" style="padding:5px 12px;font-size:0.82em;" onclick="motorCmd('inflow','cw')">CW &rarr;</button>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
+          <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('inflow','zero')">Set Closed</button>
+          <button class="btn" style="padding:5px 11px;font-size:0.82em;background:#d97706;" onclick="motorCmd('inflow','setopen')">Set Open</button>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:4px;justify-content:center;">
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;background:#4a5568;" onclick="motorCmd('inflow','close')">Closed</button>
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('inflow','third')">&frac13;</button>
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('inflow','twothird')">&frac23;</button>
+          <button class="btn" style="padding:5px 9px;font-size:0.82em;" onclick="motorCmd('inflow','open')">Open</button>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:6px;justify-content:center;">
+          <button class="btn" style="padding:5px 12px;font-size:0.82em;background:#718096;" onclick="motorCmd('inflow','stop')">Stop</button>
+        </div>
+        <div style="margin-top:7px;font-size:0.78em;color:#a0aec0;">
+          Steps&nbsp;<input id="iSteps" type="number" value="64" min="1" max="4096" style="width:52px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:2px 4px;font-size:1em;text-align:center;">
+        </div>
       </div>
     </div>
     <div class="card">
@@ -153,35 +178,37 @@
       <div class="unit">% Output</div>
       <div class="unit">SP: <span id="bsp">--</span>&deg;F &bull; <span id="btm">--</span></div>
     </div>
-    <div class="card">
-      <h2>Setpoints</h2>
-      <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:10px;">
-        <div>
-          <div class="unit">Ceiling &deg;F</div>
-          <input id="cspInput" type="number" style="width:88px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:4px 8px;font-size:1.4em;text-align:center;" value="0">
+    <div class="auth-required">
+      <div class="card">
+        <h2>Setpoints</h2>
+        <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:10px;">
+          <div>
+            <div class="unit">Ceiling &deg;F</div>
+            <input id="cspInput" type="number" style="width:88px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:4px 8px;font-size:1.4em;text-align:center;" value="0">
+          </div>
+          <button id="cPidBtn" class="btn" style="background:#4a5568;padding:6px 14px;font-size:0.85em;" onclick="togglePid('ceiling')">OFF</button>
         </div>
-        <button id="cPidBtn" class="btn" style="background:#4a5568;padding:6px 14px;font-size:0.85em;" onclick="togglePid('ceiling')">OFF</button>
-      </div>
-      <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:14px;">
-        <div>
-          <div class="unit">Bench &deg;F</div>
-          <input id="bspInput" type="number" style="width:88px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:4px 8px;font-size:1.4em;text-align:center;" value="0">
+        <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:14px;">
+          <div>
+            <div class="unit">Bench &deg;F</div>
+            <input id="bspInput" type="number" style="width:88px;background:#1a1a2e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:4px 8px;font-size:1.4em;text-align:center;" value="0">
+          </div>
+          <button id="bPidBtn" class="btn" style="background:#4a5568;padding:6px 14px;font-size:0.85em;" onclick="togglePid('bench')">OFF</button>
         </div>
-        <button id="bPidBtn" class="btn" style="background:#4a5568;padding:6px 14px;font-size:0.85em;" onclick="togglePid('bench')">OFF</button>
+        <button class="btn" style="font-size:0.85em;padding:6px 18px;" onclick="applySetpoints()">Apply</button>
+        <div id="spStatus" style="margin-top:8px;font-size:0.8em;color:#718096;min-height:1em;"></div>
       </div>
-      <button class="btn" style="font-size:0.85em;padding:6px 18px;" onclick="applySetpoints()">Apply</button>
-      <div id="spStatus" style="margin-top:8px;font-size:0.8em;color:#718096;min-height:1em;"></div>
     </div>
   </div>
   <div class="status">
     <span class="dot" id="dot"></span>
     <span id="connStatus">Connecting...</span>
   </div>
-  <div>
+  <div class="auth-required">
     <button class="btn" onclick="logNow()">Log Now</button>
     <div id="logStatus"></div>
   </div>
-  <div style="margin-top:16px;">
+  <div class="auth-required" style="margin-top:16px;">
     <button class="btn btn-warn" onclick="resetBucket('status','sauna_status')">Reset sauna_status</button>
     <button class="btn btn-warn" onclick="resetBucket('control','sauna_control')">Reset sauna_control</button>
     <div id="resetStatus"></div>
@@ -190,37 +217,79 @@
     // ── Auth ───────────────────────────────────────────────────────────────
     function authFetch(url, options) {
       options = options || {};
-      var tok = sessionStorage.getItem('sauna_token');
+      var tok = localStorage.getItem('token');
       options.headers = Object.assign({}, options.headers,
                           { 'Authorization': 'Bearer ' + tok });
       return fetch(url, options).then(function(r) {
         if (r.status === 401) {
-          sessionStorage.removeItem('sauna_token');
-          window.location.href = '/auth/login';
+          localStorage.removeItem('token');
+          document.body.classList.remove('authenticated');
+          if (ws) { ws.close(); ws = null; }
         }
         return r;
       });
     }
 
+    async function doLogin() {
+      var user = document.getElementById('login-user').value.trim();
+      var pass = document.getElementById('login-pass').value;
+      var err  = document.getElementById('login-error');
+      err.style.display = 'none';
+      try {
+        var r = await fetch('/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username: user, password: pass})
+        });
+        if (!r.ok) {
+          err.textContent = 'Invalid username or password.';
+          err.style.display = 'block';
+          return;
+        }
+        var d = await r.json();
+        localStorage.setItem('token', d.token);
+        localStorage.setItem('username', d.username);
+        localStorage.setItem('role', d.role);
+        document.getElementById('authUser').innerText = d.username;
+        document.body.classList.add('authenticated');
+        connect();
+        loadUsers();
+      } catch(e) {
+        err.textContent = 'Connection error. Try again.';
+        err.style.display = 'block';
+      }
+    }
+
     function logout() {
       authFetch('/auth/logout', { method: 'POST' }).finally(function() {
-        sessionStorage.removeItem('sauna_token');
-        window.location.href = '/auth/login';
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        localStorage.removeItem('role');
+        document.body.classList.remove('authenticated');
+        document.getElementById('authUser').innerText = '';
+        if (ws) { ws.close(); ws = null; }
       });
     }
 
-    // On load: verify token; redirect to login if invalid or missing
-    (function() {
-      var tok = sessionStorage.getItem('sauna_token');
-      if (!tok) { window.location.href = '/auth/login'; return; }
-      fetch('/auth/status', { headers: { 'Authorization': 'Bearer ' + tok } })
-        .then(function(r) {
-          if (!r.ok) { window.location.href = '/auth/login'; return; }
-          return r.json();
-        }).then(function(d) {
-          if (d) document.getElementById('authUser').innerText = d.username;
-        });
-    })();
+    document.addEventListener('DOMContentLoaded', function() {
+      loadHistory(); // always load chart — /history is unauthenticated
+      var token = localStorage.getItem('token');
+      if (token) {
+        fetch('/auth/status', {headers: {'Authorization': 'Bearer ' + token}})
+          .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
+          .then(function(d) {
+            document.getElementById('authUser').innerText = d.username || '';
+            document.body.classList.add('authenticated');
+            connect();
+            loadUsers();
+          })
+          .catch(function() {
+            localStorage.removeItem('token');
+            // login panel shown via CSS (body not .authenticated)
+          });
+      }
+      // else: login panel shown via CSS
+    });
 
     var ws;
     function connect() {
@@ -291,11 +360,12 @@
       ws.onclose = function() {
         document.getElementById('dot').className = 'dot';
         document.getElementById('connStatus').innerText = 'Disconnected \u2014 retrying...';
-        setTimeout(connect, 3000);
+        if (document.body.classList.contains('authenticated')) {
+          setTimeout(connect, 3000);
+        }
       };
       ws.onerror = function() { ws.close(); };
     }
-    connect();
     function updateEnvBanner(d) {
       var temps = [], hums = [];
       if (d.clt !== null) temps.push(parseFloat(d.clt));
@@ -444,7 +514,6 @@
         }
       });
     }
-    setTimeout(loadHistory, 1500);
     setInterval(loadHistory, 300000);
 
     function loadUsers() {
@@ -482,20 +551,20 @@
       authFetch('/users?username=' + encodeURIComponent(username), { method: 'DELETE' })
         .then(function(){ loadUsers(); });
     }
-
-    loadUsers();
   </script>
-  <div id="usersCard" class="card" style="width:100%;max-width:480px;">
-    <h2>Users</h2>
-    <div id="usersList" style="margin-bottom:16px;font-size:0.9em;"></div>
-    <details>
-      <summary style="cursor:pointer;color:#a0aec0;font-size:0.85em;">Add user</summary>
-      <div style="margin-top:10px;">
-        <input id="newUser" placeholder="Username" style="width:45%;margin-right:4px;">
-        <input id="newPass" type="password" placeholder="Password (&#x2265;8 chars)" style="width:45%;">
-        <button class="btn" style="margin-top:8px;" onclick="addUser()">Create</button>
-        <div id="userStatus" style="margin-top:8px;font-size:0.85em;color:#718096;min-height:1.2em;"></div>
-      </div>
-    </details>
+  <div class="auth-required">
+    <div id="usersCard" class="card" style="width:100%;max-width:480px;">
+      <h2>Users</h2>
+      <div id="usersList" style="margin-bottom:16px;font-size:0.9em;"></div>
+      <details>
+        <summary style="cursor:pointer;color:#a0aec0;font-size:0.85em;">Add user</summary>
+        <div style="margin-top:10px;">
+          <input id="newUser" placeholder="Username" style="width:45%;margin-right:4px;">
+          <input id="newPass" type="password" placeholder="Password (&#x2265;8 chars)" style="width:45%;">
+          <button class="btn" style="margin-top:8px;" onclick="addUser()">Create</button>
+          <div id="userStatus" style="margin-top:8px;font-size:0.85em;color:#718096;min-height:1.2em;"></div>
+        </div>
+      </details>
+    </div>
   </div>
 </body></html>
