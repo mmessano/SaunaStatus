@@ -63,9 +63,16 @@
       "Bash(kicad-cli sch:*)",
       "Bash(1 echo:*)",
       "Bash(kicad-cli pcb:*)",
-      "Bash(echo \"Exit: $?\")"
+      "Bash(echo \"Exit: $?\")",
+      "mcp__datasheets__list_directory_with_sizes",
+      "Bash(~/.platformio/penv/bin/pio test:*)",
+      "Bash(~/.platformio/penv/bin/pio run:*)",
+      "Bash(wc:*)"
     ]
   },
+  "enabledMcpjsonServers": [
+    "datasheets"
+  ],
   "hooks": {
     "PreToolUse": [
       {
