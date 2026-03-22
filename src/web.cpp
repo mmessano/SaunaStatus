@@ -657,7 +657,7 @@ void handleAuthLogin() {
     authAddSecurityHeaders();
     server.sendHeader("Cache-Control", "no-store");
     if (!server.hasArg("plain")) { server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
         server.send(400, "application/json", "{\"error\":\"bad json\"}"); return;
     }
@@ -682,7 +682,7 @@ void handleAuthLogin() {
                    username, out.role, millis(), espRandFn, token);
     logAccessEvent("login_success", username, srcStr,
                    server.client().remoteIP().toString().c_str());
-    StaticJsonDocument<192> resp;
+    JsonDocument resp;
     resp["token"]      = token;
     resp["expires_in"] = AUTH_TOKEN_TTL_MS / 1000;
     resp["username"]   = username;
@@ -708,7 +708,7 @@ void handleAuthStatus() {
     authAddSecurityHeaders();
     const AuthSession *s = requireAdmin();
     if (!s) return;
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     doc["valid"]    = true;
     doc["username"] = s->username;
     doc["role"]     = s->role;
@@ -718,10 +718,10 @@ void handleAuthStatus() {
 
 void handleUsersGet() {
     if (!requireAdmin()) return;
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     JsonArray arr = doc.to<JsonArray>();
     for (int i = 0; i < g_auth_users.count; i++) {
-        JsonObject u = arr.createNestedObject();
+        JsonObject u = arr.add<JsonObject>();
         u["username"]  = g_auth_users.users[i].name;
         u["role"]      = g_auth_users.users[i].role;
         u["protected"] = (i == 0);
@@ -733,7 +733,7 @@ void handleUsersGet() {
 void handleUsersCreate() {
     if (!requireAdmin()) return;
     if (!server.hasArg("plain")) { server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
         server.send(400, "application/json", "{\"error\":\"bad json\"}"); return;
     }
@@ -766,7 +766,7 @@ void handleUsersChangePassword() {
         server.send(400, "application/json", "{\"error\":\"missing fields\"}"); return;
     }
     String username = server.arg("username");
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
         server.send(400, "application/json", "{\"error\":\"bad json\"}"); return;
     }

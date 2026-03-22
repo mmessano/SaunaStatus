@@ -136,7 +136,7 @@ inline AdapterResult authCallAdapter(const char *username,
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", String("Bearer ") + db_key);
     http.setTimeout(3000);
-    StaticJsonDocument<128> body;
+    JsonDocument body;
     body["username"] = username;
     body["password"] = password;
     String bodyStr;
@@ -145,7 +145,7 @@ inline AdapterResult authCallAdapter(const char *username,
     if (code != 200) { http.end(); return ADAPTER_ERROR; }
     String resp = http.getString();
     http.end();
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     if (deserializeJson(doc, resp) != DeserializationError::Ok) return ADAPTER_ERROR;
     bool valid = doc["valid"] | false;
     if (!valid) return ADAPTER_REJECTED;
