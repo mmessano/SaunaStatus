@@ -486,7 +486,7 @@ void test_broadcast_timing_fresh_then_stale(void) {
 // Computed max output length ≈ 300 chars; buffer must be at least 301 bytes.
 // If buildJsonFull truncates, the JSON will not end with '}'.
 #ifndef WS_JSON_BUF_SIZE
-#define WS_JSON_BUF_SIZE 320
+#define WS_JSON_BUF_SIZE 384
 #endif
 void test_json_max_width_values_fit_in_ws_buf_size(void) {
     SensorValues sv;

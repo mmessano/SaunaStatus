@@ -217,8 +217,10 @@ PubSubClient mqttClient(mqttWifi);
 #endif
 
 // WebSocket broadcast JSON buffer size; override with -DWS_JSON_BUF_SIZE=xxx
+// Worst-case buildJsonFull output ≈ 300 chars; 384 gives 80+ bytes of headroom.
+// Must match the definition in web.cpp — both use the same JSON builder.
 #ifndef WS_JSON_BUF_SIZE
-#define WS_JSON_BUF_SIZE 320
+#define WS_JSON_BUF_SIZE 384
 #endif
 
 // MQTT publish/receive buffer size; override with -DMQTT_BUF_SIZE=xxx

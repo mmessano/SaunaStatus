@@ -203,6 +203,14 @@ Contains:
 - `struct SensorValues`, `struct MotorState`, `struct PIDState` — data containers
 - `buildJsonFull(sv, ms, ps, now_ms, buf, len)` — builds the 23-field WebSocket JSON; stale readings become `null`
 
+### motor_logic.h
+
+Header-only pure-C++ file (`src/motor_logic.h`) with no Arduino/hardware dependencies. Natively testable.
+
+Contains:
+
+- `motorClampCW(current_target, steps, max_steps)` — returns actual CW steps to move, clamped so `(current_target + actual) <= max_steps`; returns 0 if already at or beyond max. Used by `handleMotorCmd` in `web.cpp` for the `cw` command. The `ccw` floor-at-zero mirror uses the existing `min(steps, *tgt)` pattern inline.
+
 ## Sensor Layer
 
 | Sensor | Type | Interface | GPIO | Notes |
@@ -485,7 +493,7 @@ Tests run natively (no device required) using the Unity framework. Run with:
 pio test -e native
 ```
 
-Total: **124 tests** across 7 suites (verified via `pio test -e native`).
+Total: **136 tests** across 8 suites (verified via `pio test -e native`).
 
 ### `test/test_sensor/` — Sensor value formatting and JSON null handling (8 tests)
 
@@ -725,7 +733,7 @@ All JSON API responses follow these patterns:
 
 ## Unit Tests — Complete Suite
 
-Total: **124 tests** across 7 suites (verified via `pio test -e native`). Includes `test_sensor_module` (5 tests for `stoveReading()`) and `test_web_module` (6 tests for `buildJson()`) added during the modular refactor.
+Total: **136 tests** across 8 suites (verified via `pio test -e native`). Includes `test_sensor_module` (5 tests for `stoveReading()`), `test_web_module` (6 tests for `buildJson()`), and `test_motor_logic` (8 tests for `motorClampCW()`) added during subsequent refactors.
 
 ### `test/test_auth/` — Auth system (35 tests)
 
