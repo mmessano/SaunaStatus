@@ -55,6 +55,11 @@ extern AuthUserStore g_auth_users;
 
 // Functions defined in main.cpp, called by modules
 extern void savePrefs();
+
+// Deferred NVS save flag — set by MQTT callback, flushed in loop() before sensor
+// reads. Prevents calling savePrefs() (which opens NVS) from inside a callback
+// that may fire while loop() is already mid-execution on the same stack.
+extern bool g_needs_save;
 // External adapter config (char arrays, not String)
 extern char g_db_url[];
 extern char g_db_key[];

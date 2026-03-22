@@ -418,6 +418,45 @@ void test_no_adapter_configured_uses_nvs_directly(void) {
     TEST_ASSERT_EQUAL(0, g_adapterCallCount);
 }
 
+// ── M2 regression: auth layer must accept empty role string ──────────────────
+// Guards the web.cpp handler default: new users created without a role field
+// in the JSON body must receive "" (no role), never an implicit "admin".
+void test_add_user_with_empty_role_stores_empty_role(void) {
+    clearStore();
+    g_randCounter = 0;
+    AuthUserResult r = authAddUser(&g_store, "bob", "password1", "",
+                                    testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_USER_OK, r);
+    const AuthUser *u = authFindUser(&g_store, "bob");
+    TEST_ASSERT_NOT_NULL(u);
+    TEST_ASSERT_EQUAL_STRING("", u->role);  // must not be "admin"
+}
+
+// ── M9 defensive: authVerifyPassword with a corrupted (short) stored hash ──────
+// A stored_hash_hex shorter than 64 chars (e.g. from NVS corruption) must
+// never validate as correct. The fix adds a strlen pre-check before the
+// constant-time XOR loop to prevent reading past the end of the string.
+void test_verify_password_short_stored_hash_rejected(void) {
+    char salt[33], full_hash[65], short_hash[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPassword("mypassword", salt, full_hash, testHashFn);
+    // Simulate NVS corruption: only the first 32 of 64 hex chars survived
+    memset(short_hash, 0, sizeof(short_hash));
+    memcpy(short_hash, full_hash, 32);  // 32 chars + null terminator
+    TEST_ASSERT_FALSE(authVerifyPassword("mypassword", salt, short_hash, testHashFn));
+}
+
+// ── M9 edge: empty stored hash must always reject ────────────────────────────
+void test_verify_password_empty_stored_hash_rejected(void) {
+    char salt[33], hash[65];
+    g_randCounter = 5;
+    authGenerateSalt(salt, testRandFn);
+    authHashPassword("password1", salt, hash, testHashFn);
+    char empty_hash[65] = "";
+    TEST_ASSERT_FALSE(authVerifyPassword("password1", salt, empty_hash, testHashFn));
+}
+
 void test_influx_log_event_fields(void) {
     AuthLogEvent ev = authBuildLogEvent("login_success", "alice",
                                          "192.168.1.50", "nvs");
@@ -466,5 +505,8 @@ int main(int argc, char **argv) {
     RUN_TEST(test_adapter_error_falls_through_to_nvs_failure);
     RUN_TEST(test_no_adapter_configured_uses_nvs_directly);
     RUN_TEST(test_influx_log_event_fields);
+    RUN_TEST(test_add_user_with_empty_role_stores_empty_role);
+    RUN_TEST(test_verify_password_short_stored_hash_rejected);
+    RUN_TEST(test_verify_password_empty_stored_hash_rejected);
     return UNITY_END();
 }

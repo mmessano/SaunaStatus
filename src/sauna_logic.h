@@ -5,7 +5,9 @@
 #include <cstdint>
 #include <limits>
 
-namespace { constexpr float _snan = std::numeric_limits<float>::quiet_NaN(); }
+// static constexpr avoids the anonymous-namespace-in-header ODR pitfall while
+// still giving every TU its own compile-time NaN constant.
+static constexpr float _snan = std::numeric_limits<float>::quiet_NaN();
 
 inline float c2f(float c) { return c * 9.0f / 5.0f + 32.0f; }
 inline float f2c(float f) { return (f - 32.0f) * 5.0f / 9.0f; }

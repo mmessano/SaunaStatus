@@ -77,6 +77,9 @@ AuthSession    g_auth_sessions[AUTH_MAX_SESSIONS];
 AuthUserStore  g_auth_users;
 char           g_db_url[128] = "";
 char           g_db_key[64]  = "";
+// Deferred NVS save flag. Set by mqttCallback(); flushed in loop() before the
+// sensor-read block so savePrefs() never runs from inside a callback context.
+bool g_needs_save = false;
 
 // Add 3WIRE PT1000 sensor for the stove
 // use hardware SPI, just pass in the CS pin
@@ -84,8 +87,14 @@ char           g_db_key[64]  = "";
 // The 'nominal' 0-degrees-C resistance of the sensor
 // 100.0 for PT100, 1000.0 for PT1000
 Adafruit_MAX31865 stove_thermo = Adafruit_MAX31865(5);
+// #ifndef guards: authoritative values live in sensors.cpp; these are retained
+// for documentation only and must not conflict with the sensors.cpp definitions.
+#ifndef RREF
 #define RREF 4300.0
+#endif
+#ifndef RNOMINAL
 #define RNOMINAL 1000.0
+#endif
 
 // INA260 power monitor — I2C on GPIO4 (SDA) / GPIO13 (SCL)
 // Integrated 2 mΩ shunt; no external resistor required.
@@ -636,6 +645,14 @@ void setup()
 
 void loop()
 {
+  // Flush any NVS save requested by the MQTT callback (H1: deferred savePrefs).
+  // Must run before mqttClient.loop() which may re-trigger the callback.
+  if (g_needs_save)
+  {
+    g_needs_save = false;
+    savePrefs();
+  }
+
   server.handleClient();
   webSocket.loop();
 
@@ -662,6 +679,10 @@ void loop()
   if (millis() - lastRead >= g_sensor_read_interval_ms)
   {
     lastRead = millis();
+    // Cache now_ms once so all staleness checks within this block are consistent.
+    // readSensors() can take up to ~250 ms (DHT timing); re-calling millis() mid-block
+    // could cause a sensor to appear stale or fresh depending on call order.
+    const unsigned long now_ms = lastRead;
 
     // Read all sensors (DHT21 ceiling+bench, MAX31865 stove, INA260 power)
     readSensors();
@@ -671,7 +692,7 @@ void loop()
 
     // CeilingPID → Outflow motor (A)
     bool c_cons = false;
-    if (!alarm && ceiling_pid_en && !isnan(ceiling_temp) && !isSensorStale(ceiling_last_ok_ms, millis(), STALE_THRESHOLD_MS))
+    if (!alarm && ceiling_pid_en && !isnan(ceiling_temp) && !isSensorStale(ceiling_last_ok_ms, now_ms, STALE_THRESHOLD_MS))
     {
       float c_gap = fabsf(Ceilingpoint - ceiling_temp);
       c_cons = c_gap < PID_CONSERVATIVE_THRESHOLD_C;
@@ -720,7 +741,7 @@ void loop()
 
     // BenchPID → Inflow stepper
     bool b_cons = false;
-    if (!alarm && bench_pid_en && !isnan(bench_temp) && !isSensorStale(bench_last_ok_ms, millis(), STALE_THRESHOLD_MS))
+    if (!alarm && bench_pid_en && !isnan(bench_temp) && !isSensorStale(bench_last_ok_ms, now_ms, STALE_THRESHOLD_MS))
     {
       float b_gap = fabsf(Benchpoint - bench_temp);
       b_cons = b_gap < PID_CONSERVATIVE_THRESHOLD_C;

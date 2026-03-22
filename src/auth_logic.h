@@ -142,11 +142,19 @@ inline void authHashPassword(const char *password,
     authBytesToHex(digest, 32, out_hash);
 }
 
-// Returns true if hash_fn(salt || password) matches stored_hash_hex
+// Returns true if hash_fn(salt || password) matches stored_hash_hex.
+// stored_hash_hex must be exactly 64 hex chars + null (65 bytes). Any shorter
+// value (e.g. from NVS corruption) is rejected before the XOR loop to prevent
+// reading past the end of the string.
 inline bool authVerifyPassword(const char *password,
                                 const char *salt_hex,
                                 const char *stored_hash_hex,
                                 AuthHashFn hash_fn) {
+    // Length guard: a valid SHA-256 hex digest is always exactly 64 chars.
+    size_t stored_len = 0;
+    while (stored_len <= 64 && stored_hash_hex[stored_len]) stored_len++;
+    if (stored_len != 64) return false;
+
     char computed[65];
     authHashPassword(password, salt_hex, computed, hash_fn);
     // Constant-time compare on the 64-char hex strings

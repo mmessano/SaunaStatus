@@ -477,6 +477,63 @@ void test_broadcast_timing_fresh_then_stale(void) {
     TEST_ASSERT_NOT_NULL_MESSAGE(strstr(buf2, "\"clt\":null"), "one ms past threshold: temp must be null");
 }
 
+// ── M11 regression: buildJsonFull with worst-case float widths must fit ──────
+// Guards WS_JSON_BUF_SIZE. Worst-case max values:
+//   temps:  900 °C stove → c2f ≈ 1652.0 (6 chars)
+//   setpts: f2c(300 °F) → c2f back to "300.0" (5 chars)
+//   power:  9999.9 → snprintf("%.1f") → "10000.0" (7 chars)
+//   pid out: 255 → "255.0" (5 chars)
+// Computed max output length ≈ 300 chars; buffer must be at least 301 bytes.
+// If buildJsonFull truncates, the JSON will not end with '}'.
+#ifndef WS_JSON_BUF_SIZE
+#define WS_JSON_BUF_SIZE 320
+#endif
+void test_json_max_width_values_fit_in_ws_buf_size(void) {
+    SensorValues sv;
+    sv.ceiling_temp       = 900.0f;    // c2f = 1652.0
+    sv.ceiling_hum        = 100.0f;    // "100.0" 5 chars
+    sv.bench_temp         = 900.0f;
+    sv.bench_hum          = 100.0f;
+    sv.stove_temp         = 900.0f;
+    sv.pwr_bus_V          = 9999.9f;   // "10000.0" 7 chars
+    sv.pwr_current_mA     = 9999.9f;
+    sv.pwr_mW             = 9999.9f;
+    sv.ceiling_last_ok_ms = 1000;
+    sv.bench_last_ok_ms   = 1000;
+    sv.stale_threshold_ms = 0;         // disable stale check
+
+    MotorState ms;
+    ms.outflow_pos = 100;   // 3 chars
+    ms.outflow_dir = -1;    // 2 chars
+    ms.inflow_pos  = 100;
+    ms.inflow_dir  = -1;
+
+    PIDState ps;
+    ps.ceiling_output = 255.0f;   // "255.0" 5 chars
+    ps.bench_output   = 255.0f;
+    ps.c_cons_mode    = true;
+    ps.b_cons_mode    = true;
+    ps.ceiling_pid_en = true;
+    ps.bench_pid_en   = true;
+    ps.Ceilingpoint   = (300.0f - 32.0f) * 5.0f / 9.0f;  // f2c(300°F max setpoint)
+    ps.Benchpoint     = (300.0f - 32.0f) * 5.0f / 9.0f;
+    ps.overheat_alarm = true;
+
+    char buf[WS_JSON_BUF_SIZE];
+    memset(buf, 0, sizeof(buf));
+    buildJsonFull(sv, ms, ps, 1000UL, buf, sizeof(buf));
+
+    size_t len = strlen(buf);
+
+    // JSON must be structurally valid (not truncated mid-field)
+    TEST_ASSERT_EQUAL_MESSAGE('{', buf[0],        "JSON must start with {");
+    TEST_ASSERT_EQUAL_MESSAGE('}', buf[len - 1],  "JSON must end with } (not truncated)");
+
+    // Output must fit with at least one byte of headroom (no snprintf truncation)
+    TEST_ASSERT_LESS_THAN_MESSAGE((int)WS_JSON_BUF_SIZE, (int)(len + 1),
+        "output + null must fit within WS_JSON_BUF_SIZE");
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_json_contains_all_keys);
@@ -498,5 +555,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_reconnect_partial_hum_ok_temp_nan);
     RUN_TEST(test_disconnect_elapsed_time_becomes_stale);
     RUN_TEST(test_broadcast_timing_fresh_then_stale);
+    RUN_TEST(test_json_max_width_values_fit_in_ws_buf_size);
     return UNITY_END();
 }

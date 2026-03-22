@@ -4,6 +4,7 @@
 
 #include "secrets.h"
 #include "web.h"
+#include "motor_logic.h"
 #include "auth.h"
 #include "influx.h"
 #include "ota_logic.h"
@@ -38,7 +39,9 @@
 #define SERIAL_LOG_INTERVAL_MAX_MS 60000UL
 #endif
 #ifndef WS_JSON_BUF_SIZE
-#define WS_JSON_BUF_SIZE 320
+// Worst-case buildJsonFull output ≈ 300 chars (212 fixed + 88 max-width values).
+// 384 gives 80+ bytes of headroom for future field additions without silent truncation.
+#define WS_JSON_BUF_SIZE 384
 #endif
 
 
@@ -138,9 +141,15 @@ void handleMotorCmd()
 
   if (cmd == "cw")
   {
-    *tgt += steps;
-    *dir = 1;
-    m->newMove(true, steps);
+    int actual = motorClampCW(*tgt, steps, *mx);  // clamp: never exceed max steps
+    if (actual > 0)
+    {
+      *tgt += actual;
+      *dir = 1;
+      m->newMove(true, actual);
+    }
+    else
+      *dir = 0;  // already at max
   }
   else if (cmd == "ccw")
   {
@@ -730,7 +739,7 @@ void handleUsersCreate() {
     }
     const char *username = doc["username"] | "";
     const char *password = doc["password"] | "";
-    const char *role     = doc["role"]     | "admin";
+    const char *role     = doc["role"]     | "";  // no implicit privilege escalation
     AuthUserResult r = authAddUser(&g_auth_users, username, password, role,
                                     espRandFn, mbedHashFn);
     if (r == AUTH_USER_BAD_PASS) { server.send(400, "application/json", "{\"error\":\"password too short\"}"); return; }

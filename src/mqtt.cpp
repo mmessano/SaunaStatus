@@ -26,12 +26,12 @@ void mqttCallback(char *topic, byte *payload, unsigned int len)
   if (strcmp(topic, "sauna/ceiling_pid/set") == 0)
   {
     ceiling_pid_en = (strcmp(msg, "ON") == 0);
-    savePrefs();
+    g_needs_save = true;  // deferred: savePrefs() called from loop(), not callback
   }
   else if (strcmp(topic, "sauna/bench_pid/set") == 0)
   {
     bench_pid_en = (strcmp(msg, "ON") == 0);
-    savePrefs();
+    g_needs_save = true;
   }
   else if (strcmp(topic, "sauna/ceiling_setpoint/set") == 0)
   {
@@ -39,7 +39,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int len)
     if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
     {
       Ceilingpoint = (f - 32.0f) * 5.0f / 9.0f;
-      savePrefs();
+      g_needs_save = true;
     }
   }
   else if (strcmp(topic, "sauna/bench_setpoint/set") == 0)
@@ -48,7 +48,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int len)
     if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
     {
       Benchpoint = (f - 32.0f) * 5.0f / 9.0f;
-      savePrefs();
+      g_needs_save = true;
     }
   }
 }
@@ -103,7 +103,8 @@ void mqttPublishDiscovery()
            "\"device_class\":\"%s\",\"state_class\":\"measurement\","  \
            "\"unique_id\":\"sauna_" id "\",%s}",                       \
            nm, vt, unit, dc, dev);                                     \
-  mqttClient.publish("homeassistant/sensor/sauna_esp32/" id "/config", buf, true);
+  if (!mqttClient.publish("homeassistant/sensor/sauna_esp32/" id "/config", buf, true)) \
+    Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
 // Sensor without device_class
 #define PUB_SN(id, nm, vt, unit)                                       \
@@ -113,7 +114,8 @@ void mqttPublishDiscovery()
            "\"state_class\":\"measurement\","                          \
            "\"unique_id\":\"sauna_" id "\",%s}",                       \
            nm, vt, unit, dev);                                         \
-  mqttClient.publish("homeassistant/sensor/sauna_esp32/" id "/config", buf, true);
+  if (!mqttClient.publish("homeassistant/sensor/sauna_esp32/" id "/config", buf, true)) \
+    Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
 // Switch
 #define PUB_SW(id, nm, vt, cmd)                                  \
@@ -122,7 +124,8 @@ void mqttPublishDiscovery()
            "\"value_template\":\"%s\",\"command_topic\":\"%s\"," \
            "\"unique_id\":\"sauna_" id "\",%s}",                 \
            nm, vt, cmd, dev);                                    \
-  mqttClient.publish("homeassistant/switch/sauna_esp32/" id "/config", buf, true);
+  if (!mqttClient.publish("homeassistant/switch/sauna_esp32/" id "/config", buf, true)) \
+    Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
 // Number (setpoint)
 #define PUB_N(id, nm, vt, cmd)                                   \
@@ -134,7 +137,8 @@ void mqttPublishDiscovery()
            "F\","                                                \
            "\"unique_id\":\"sauna_" id "\",%s}",                 \
            nm, vt, cmd, dev);                                    \
-  mqttClient.publish("homeassistant/number/sauna_esp32/" id "/config", buf, true);
+  if (!mqttClient.publish("homeassistant/number/sauna_esp32/" id "/config", buf, true)) \
+    Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
   PUB_S("ceiling_temp", "Ceiling Temperature", "{{ value_json.ceiling_temp | round(1) }}", "\xc2\xb0"
                                                                                            "F",
