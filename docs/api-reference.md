@@ -31,14 +31,14 @@ All endpoints are registered on port 80. There is no authentication. The `Cache-
 
 Serves the web UI from LittleFS.
 
-**Response**
+#### Response
 
 | Status | Content-Type  | Body                    |
 |--------|---------------|-------------------------|
 | `200`  | `text/html`   | `/index.html` from LittleFS (streamed) |
 | `500`  | `text/plain`  | `index.html not found`  |
 
-**Example**
+#### Example
 
 ```
 GET http://192.168.1.200/
@@ -50,14 +50,14 @@ GET http://192.168.1.200/
 
 Triggers an immediate write of all current sensor and control state to InfluxDB (both `sauna_status` and `sauna_control` measurements). Normally writes happen on a 60-second timer; this forces an out-of-cycle write.
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body                               |
 |--------|--------------|------------------------------------|
 | `200`  | `text/plain` | `OK`                               |
 | `500`  | `text/plain` | InfluxDB error message string      |
 
-**Example**
+#### Example
 
 ```
 GET http://192.168.1.200/log
@@ -69,20 +69,20 @@ GET http://192.168.1.200/log
 
 Proxies a Flux query to InfluxDB and returns the result as CSV. The InfluxDB token never leaves the device. Returns 5-minute mean aggregates for `ceiling_temp`, `bench_temp`, and `stove_temp` from the `sauna_status` measurement.
 
-**Query Parameters**
+#### Query Parameters
 
 | Name    | Type   | Required | Validation                                      | Description                        |
 |---------|--------|----------|-------------------------------------------------|------------------------------------|
 | `range` | string | No       | 1–8 characters, `[0-9a-zA-Z]` only; defaults to `1h` if missing or invalid | Flux range string (e.g., `1h`, `3h`, `24h`, `7d`) |
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body                         |
 |--------|--------------|------------------------------|
 | `200`  | `text/csv`   | Flux query result as CSV     |
 | `502`  | `text/plain` | `InfluxDB query failed`      |
 
-**Flux Query Executed**
+#### Flux Query Executed
 
 ```flux
 from(bucket:"<BUCKET>")
@@ -99,7 +99,7 @@ from(bucket:"<BUCKET>")
 
 CSV dialect: no annotations, header row included, comma delimiter.
 
-**Examples**
+#### Examples
 
 ```
 GET http://192.168.1.200/history
@@ -113,7 +113,7 @@ GET http://192.168.1.200/history?range=24h
 
 Sets one or both PID temperature setpoints. Accepts values in degrees Fahrenheit. Values outside 32–300 °F are silently ignored (the existing setpoint is unchanged). Persists to NVS immediately.
 
-**Query Parameters**
+#### Query Parameters
 
 | Name      | Type  | Required | Validation          | Description                       |
 |-----------|-------|----------|---------------------|-----------------------------------|
@@ -122,17 +122,17 @@ Sets one or both PID temperature setpoints. Accepts values in degrees Fahrenheit
 
 At least one parameter should be provided; providing neither is accepted but has no effect.
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body |
 |--------|--------------|------|
 | `200`  | `text/plain` | `OK` |
 
-**Side Effects**
+#### Side Effects
 
 Saves `csp` (ceiling setpoint, in °C) and `bsp` (bench setpoint, in °C) to NVS namespace `sauna`.
 
-**Examples**
+#### Examples
 
 ```
 GET http://192.168.1.200/setpoint?ceiling=160
@@ -146,7 +146,7 @@ GET http://192.168.1.200/setpoint?ceiling=160&bench=120
 
 Enables or disables one or both PID controllers. Persists to NVS immediately.
 
-**Query Parameters**
+#### Query Parameters
 
 | Name      | Type   | Required | Accepted Values | Description              |
 |-----------|--------|----------|-----------------|--------------------------|
@@ -155,17 +155,17 @@ Enables or disables one or both PID controllers. Persists to NVS immediately.
 
 Any value other than `"1"` is treated as disable.
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body |
 |--------|--------------|------|
 | `200`  | `text/plain` | `OK` |
 
-**Side Effects**
+#### Side Effects
 
 Saves `cen` and `ben` booleans to NVS namespace `sauna`.
 
-**Examples**
+#### Examples
 
 ```
 GET http://192.168.1.200/pid?ceiling=1
@@ -179,7 +179,7 @@ GET http://192.168.1.200/pid?ceiling=1&bench=1
 
 Commands a stepper motor. All commands respond immediately; motor movement runs asynchronously in the main loop.
 
-**Query Parameters**
+#### Query Parameters
 
 | Name    | Type    | Required | Validation                             | Description                          |
 |---------|---------|----------|----------------------------------------|--------------------------------------|
@@ -187,14 +187,14 @@ Commands a stepper motor. All commands respond immediately; motor movement runs 
 | `cmd`   | string  | Yes      | See command table below                | Command to execute                   |
 | `steps` | integer | No       | 1 ≤ value ≤ 4096 (`VENT_STEPS * 4`); defaults to `64` if absent or out of range | Step count for `cw`/`ccw` commands |
 
-**Motor Names**
+#### Motor Names
 
 | Value     | Physical Vent         | GPIO Pins              |
 |-----------|-----------------------|------------------------|
 | `outflow` | Upper (exhaust) vent  | 21, 25, 26, 14         |
 | `inflow`  | Lower (intake) vent   | 22, 27, 32, 33         |
 
-**Command Table**
+#### Command Table
 
 | `cmd`       | Description                                                                                                           | NVS Side Effect     |
 |-------------|-----------------------------------------------------------------------------------------------------------------------|---------------------|
@@ -208,7 +208,7 @@ Commands a stepper motor. All commands respond immediately; motor movement runs 
 | `zero`      | Calibration: mark current physical position as step 0 (closed). Stops motor, sets target to 0.                        | None (use `setopen` to persist) |
 | `setopen`   | Calibration: mark current physical position as the fully-open endpoint. Saves calibrated max steps to NVS. Only applied if current target > 0. | Saves `omx` (outflow) or `imx` (inflow) to NVS namespace `sauna` |
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body         |
 |--------|--------------|--------------|
@@ -216,7 +216,7 @@ Commands a stepper motor. All commands respond immediately; motor movement runs 
 | `400`  | `text/plain` | `Bad motor`  |
 | `400`  | `text/plain` | `Bad cmd`    |
 
-**Examples**
+#### Examples
 
 ```
 GET http://192.168.1.200/motor?motor=outflow&cmd=open
@@ -232,7 +232,7 @@ GET http://192.168.1.200/motor?motor=inflow&cmd=close
 
 Serves the configuration portal UI from LittleFS.
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body |
 |--------|--------------|------|
@@ -245,13 +245,13 @@ Serves the configuration portal UI from LittleFS.
 
 Returns the current runtime configuration as JSON.
 
-**Response**
+#### Response
 
 | Status | Content-Type       | Body |
 |--------|--------------------|------|
 | `200`  | `application/json` | JSON object (see below) |
 
-**Response Schema**
+#### Response Schema
 
 ```json
 {
@@ -285,7 +285,7 @@ Validates and applies runtime configuration changes. All fields are optional; on
 
 **Content-Type:** `application/x-www-form-urlencoded`
 
-**Parameters**
+#### Parameters
 
 | Name | Type | Validation | Description |
 |---|---|---|---|
@@ -298,7 +298,7 @@ Validates and applies runtime configuration changes. All fields are optional; on
 | `static_ip` | string | valid IPv4 address | New static IP (restart required) |
 | `device_name` | string | 1–24 chars, `[A-Za-z0-9_-]` | New device name (restart required) |
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body |
 |--------|--------------|------|
@@ -309,7 +309,7 @@ Validates and applies runtime configuration changes. All fields are optional; on
 
 All validated fields are persisted to NVS immediately.
 
-**Example**
+#### Example
 
 ```
 POST http://192.168.1.200/config/save
@@ -324,13 +324,13 @@ ceiling_setpoint_f=170&sensor_read_interval_ms=3000
 
 Returns current firmware version and OTA partition information.
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body |
 |--------|--------------|------|
 | `200`  | `application/json` | JSON object (see below) |
 
-**Response Schema**
+#### Response Schema
 
 ```json
 {
@@ -352,13 +352,13 @@ Returns current firmware version and OTA partition information.
 
 Initiates an OTA firmware update by downloading and applying a firmware binary described by a JSON manifest URL. Refuses same-version re-flashes and downgrades. Partial-download state is persisted to NVS so an interrupted transfer can be detected on the next boot.
 
-**Query Parameters**
+#### Query Parameters
 
 | Name | Type | Required | Description |
 |---|---|---|---|
 | `manifest` | string | Yes | URL of the OTA manifest JSON file |
 
-**Manifest JSON Format**
+#### Manifest JSON Format
 
 ```json
 {
@@ -367,7 +367,7 @@ Initiates an OTA firmware update by downloading and applying a firmware binary d
 }
 ```
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body |
 |--------|--------------|------|
@@ -378,7 +378,7 @@ Initiates an OTA firmware update by downloading and applying a firmware binary d
 | `502`  | `application/json` | `{"ok":false,"error":"manifest fetch failed: HTTP <code>"}` |
 | `500`  | `application/json` | `{"ok":false,"error":"<firmware download/flash error>"}` |
 
-**Example**
+#### Example
 
 ```
 POST http://192.168.1.200/ota/update?manifest=http://192.168.1.10/firmware/manifest.json
@@ -390,14 +390,14 @@ POST http://192.168.1.200/ota/update?manifest=http://192.168.1.10/firmware/manif
 
 Deletes all data in the `sauna_status` measurement from InfluxDB (time range `1970-01-01` to `2099-12-31`).
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body            |
 |--------|--------------|-----------------|
 | `200`  | `text/plain` | `OK`            |
 | `500`  | `text/plain` | `Delete failed` |
 
-**Example**
+#### Example
 
 ```
 GET http://192.168.1.200/delete/status
@@ -409,14 +409,14 @@ GET http://192.168.1.200/delete/status
 
 Deletes all data in the `sauna_control` measurement from InfluxDB (same time range as `/delete/status`).
 
-**Response**
+#### Response
 
 | Status | Content-Type | Body            |
 |--------|--------------|-----------------|
 | `200`  | `text/plain` | `OK`            |
 | `500`  | `text/plain` | `Delete failed` |
 
-**Example**
+#### Example
 
 ```
 GET http://192.168.1.200/delete/control
@@ -426,24 +426,24 @@ GET http://192.168.1.200/delete/control
 
 ## 3. WebSocket API (port 81)
 
-**Connection**
+#### Connection
 
 ```
 ws://192.168.1.200:81/
 ```
 
-**Message Direction**
+#### Message Direction
 
 Server → client only. The client never sends messages; the server does not process any received frames.
 
-**Trigger Conditions**
+#### Trigger Conditions
 
 | Event                          | Behavior                                              |
 |--------------------------------|-------------------------------------------------------|
 | Client connects                | Server immediately sends one JSON message to that client |
 | Every 2 seconds (main loop)    | Server broadcasts one JSON message to all connected clients |
 
-**JSON Schema**
+#### JSON Schema
 
 All fields are always present. Temperature fields are in **degrees Fahrenheit**. Fields sourced from DHT sensors become JSON `null` when the sensor reading is `NaN` *or* when the sensor is stale (no valid read in the last 10,000 ms, or never read since boot). The stove temperature (`tct`) becomes `null` on MAX31865 fault or out-of-range reading (-200 to 900 °C); it is never affected by the stale-threshold logic.
 
@@ -473,7 +473,7 @@ All fields are always present. Temperature fields are in **degrees Fahrenheit**.
 | `cst`   | number (0/1)    | —       | Ceiling sensor stale flag: `1`=stale (no valid read in > 10,000 ms or never read) | Never null                                        |
 | `bst`   | number (0/1)    | —       | Bench sensor stale flag: `1`=stale                                          | Never null                                              |
 
-**Stale Detection Details**
+#### Stale Detection Details
 
 The stale threshold is `STALE_THRESHOLD_MS = 10000` ms (10 seconds). A sensor is stale if:
 - `last_ok_ms == 0` (device has not received a valid reading since boot), OR
@@ -481,7 +481,7 @@ The stale threshold is `STALE_THRESHOLD_MS = 10000` ms (10 seconds). A sensor is
 
 When `cst=1`, `clt` and `clh` are forced to `null` in the JSON regardless of the raw sensor value. Same applies to `bst` for `d5t`/`d5h`.
 
-**Example JSON Payload**
+#### Example JSON Payload
 
 ```json
 {
@@ -515,23 +515,23 @@ When `cst=1`, `clt` and `clh` are forced to `null` in the JSON regardless of the
 
 ## 4. MQTT API
 
-**Broker**
+#### Broker
 
 Address and port are defined in `secrets.h` as `MQTT_BROKER` and `MQTT_PORT` (default port 1883).
 
-**Client ID**
+#### Client ID
 
 `sauna_esp32`
 
-**Authentication**
+#### Authentication
 
 If `MQTT_USER` in `secrets.h` is a non-empty string, connects with username and password (`MQTT_USER`/`MQTT_PASS`). If empty, connects without credentials.
 
-**Reconnect Behavior**
+#### Reconnect Behavior
 
 If disconnected, the firmware retries every 5,000 ms. On reconnect, HA Discovery payloads are re-published and all subscriptions are re-established.
 
-**Buffer Size**
+#### Buffer Size
 
 512 bytes (set via `mqttClient.setBufferSize(512)`).
 
@@ -564,7 +564,7 @@ Published every 2 seconds (synchronized with the sensor read cycle). QoS 0, not 
 }
 ```
 
-**Field Descriptions**
+#### Field Descriptions
 
 | Field              | JSON Type      | Units | Description                                                                |
 |--------------------|----------------|-------|----------------------------------------------------------------------------|

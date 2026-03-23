@@ -7,7 +7,7 @@ Apply these rules when generating `.kicad_sch` files from Python (or any code).
 
 ## 1. Grid Alignment
 
-**All coordinates must be integer multiples of 2.54 mm.**
+#### All coordinates must be integer multiples of 2.54 mm.
 
 - Use constants: `GRID = 2.54`
 - Snap every position: `round(x / 2.54) * 2.54`
@@ -62,7 +62,7 @@ Rules:
 `power:PWR_FLAG` silences `power_pin_not_driven` ERC errors.
 Its single pin is at `(0, 0)` in library coordinates (no offset).
 
-**Place PWR_FLAG at the exact same `(x, y)` as the power symbol it certifies.**
+#### Place PWR_FLAG at the exact same `(x, y)` as the power symbol it certifies.
 
 ```python
 elements.append(power_sym("+3V3", x, y))

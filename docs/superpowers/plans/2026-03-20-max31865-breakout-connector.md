@@ -107,7 +107,7 @@ All wires run horizontally from (226.06, y) to (215.9, y). Net labels at angle 1
 
 ## Task 1: Back Up Schematic and PCB
 
-**Files:**
+#### Files:
 - Read/Write: `docs/kicad/SaunaStatus.kicad_sch`
 - Read/Write: `docs/kicad/SaunaStatus.kicad_pcb`
 
@@ -130,7 +130,7 @@ Expected: both files present with non-zero size.
 
 ## Task 2: Remove All U2 and J1 Elements from Schematic
 
-**Files:**
+#### Files:
 - Modify: `docs/kicad/SaunaStatus.kicad_sch`
 - Create: `docs/kicad/remove_u2_j1.py` (temporary script)
 
@@ -355,7 +355,7 @@ Expected: paren balance = 0; all analog net names have 0 occurrences.
 
 ## Task 3: Add Conn_01x08 lib_symbol to Embedded Symbols
 
-**Files:**
+#### Files:
 - Modify: `docs/kicad/SaunaStatus.kicad_sch`
 - Create: `docs/kicad/add_conn01x08_lib.py` (temporary)
 
@@ -504,7 +504,7 @@ assert depth == 0
 
 ## Task 4: Add New J1 Connector Symbol with All Connections
 
-**Files:**
+#### Files:
 - Modify: `docs/kicad/SaunaStatus.kicad_sch`
 - Create: `docs/kicad/add_new_j1.py` (temporary)
 
@@ -713,7 +713,7 @@ assert depth == 0
 
 ## Task 5: Run ERC and Fix Any Violations
 
-**Files:**
+#### Files:
 - Read: `docs/kicad/SaunaStatus.kicad_sch` (via MCP tool)
 
 - [ ] **Step 1: Run ERC via MCP server**
@@ -740,7 +740,7 @@ Open `docs/kicad/SaunaStatus.kicad_pro` in KiCad and visually confirm:
 
 ## Task 6: Update PCB
 
-**Files:**
+#### Files:
 - Read/Modify: `docs/kicad/SaunaStatus.kicad_pcb`
 
 This step must be done in the KiCad GUI. PCB layout cannot be reliably edited as text for footprint placement.
@@ -775,7 +775,7 @@ File → Save (Ctrl+S).
 
 ## Task 7: Run DRC and Fix Any Violations
 
-**Files:**
+#### Files:
 - Read: `docs/kicad/SaunaStatus.kicad_pcb`
 
 - [ ] **Step 1: Run DRC via MCP server**
@@ -792,7 +792,7 @@ If J1's new 8-pin footprint extends outside the board outline, move it within bo
 
 ## Task 8: Run Unit Tests
 
-**Files:**
+#### Files:
 - Read: `test/` (all test suites)
 
 - [ ] **Step 1: Run all native tests**
@@ -811,7 +811,7 @@ If failures occur: this is a pure schematic change with no firmware changes — 
 
 ## Task 9: Clean Up Temporary Scripts and Commit
 
-**Files:**
+#### Files:
 - Delete: `docs/kicad/remove_u2_j1.py`
 - Delete: `docs/kicad/add_conn01x08_lib.py`
 - Delete: `docs/kicad/add_new_j1.py`

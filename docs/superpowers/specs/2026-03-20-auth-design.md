@@ -41,7 +41,7 @@ Add user authentication and role-based access control to the SaunaStatus web int
 
 ## Authentication Mechanism
 
-**Bearer token, in-memory session store.**
+#### Bearer token, in-memory session store.
 
 ```
 POST /auth/login  {username, password}
@@ -339,7 +339,7 @@ Note: `DELETE /users` uses `?username=X` query parameter (not path segment) — 
 
 ### Modified: `data/index.html`
 
-**On page load:**
+#### On page load:
 1. Read `sauna_token` from `sessionStorage`
 2. `GET /auth/status` with token — if 401, redirect to `/auth/login`
 3. Display username + **Logout** button (top-right)
@@ -474,7 +474,7 @@ Changes to `src/main.cpp`:
 
 ### `test/test_auth/` (native — tests `auth_logic.h` only)
 
-**Session / token:**
+#### Session / token:
 - Token issuance populates a session slot correctly
 - Issued token validates successfully
 - Wrong token is rejected
@@ -485,26 +485,26 @@ Changes to `src/main.cpp`:
 - Slot eviction: oldest-issued slot displaced when all 10 slots hold valid tokens
 - Slot eviction: expired slot reclaimed before displacing valid session
 
-**Credential verification:**
+#### Credential verification:
 - Correct password verifies against stored SHA-256+salt hash
 - Wrong password rejected
 - Empty password rejected (min length check)
 - Password below `AUTH_MIN_PASS_LEN` rejected
 - Constant-time comparator returns true for equal tokens, false for differing tokens
 
-**Fallback logic (mockable interface):**
+#### Fallback logic (mockable interface):
 - Adapter success (`{valid:true}`) → token issued, NVS not consulted
 - Adapter hard rejection (`{valid:false}`) → 401, NVS not consulted (no fallthrough)
 - Adapter timeout/error → falls through to NVS; NVS match succeeds
 - Adapter timeout/error → falls through to NVS; NVS mismatch → 401
 - `db_url` empty → NVS consulted directly, no adapter call
 
-**User management (portable logic only — NVS I/O is mocked):**
+#### User management (portable logic only — NVS I/O is mocked):
 - Max user limit enforced (6th user rejected)
 - Slot-0 delete attempt rejected with error code
 - Slot-0 password change permitted
 
-**InfluxDB access logging (portable logic — InfluxDB client is mocked):**
+#### InfluxDB access logging (portable logic — InfluxDB client is mocked):
 - `login_success` event carries correct username and auth_source
 - `login_failure` event carries attempted username and auth_source
 - `logout` event carries username; auth_source is `"none"`

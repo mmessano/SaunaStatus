@@ -66,7 +66,7 @@ git commit --allow-empty -m "chore: begin modular refactor — baseline 113 test
 
 ## Task 1: Create `globals.h`
 
-**Files:**
+#### Files:
 - Create: `src/globals.h`
 
 `globals.h` is the single source of truth for `extern` declarations of all globals defined in `main.cpp`. Hardware objects are wrapped in `#ifdef ARDUINO` guards so native test builds compile cleanly. `String` (Arduino type) globals are also guarded.
@@ -180,7 +180,7 @@ git commit -m "feat(refactor): add globals.h with extern declarations and ARDUIN
 
 ## Task 2: Write Failing Tests — `test_sensor_module`
 
-**Files:**
+#### Files:
 - Create: `test/test_sensor_module/test_main.cpp`
 - Create: `test/test_sensor_module/test_globals.cpp`
 
@@ -284,7 +284,7 @@ git commit -m "test(sensors): add failing tests for stoveReading() — red phase
 
 ## Task 3: Create `sensors.h/.cpp` — Make Sensor Tests Pass
 
-**Files:**
+#### Files:
 - Create: `src/sensors.h`
 - Create: `src/sensors.cpp`
 
@@ -426,7 +426,7 @@ git commit -m "feat(sensors): extract sensors module with stoveReading() and rea
 
 ## Task 4: Write Failing Tests — `test_web_module`
 
-**Files:**
+#### Files:
 - Create: `test/test_web_module/test_main.cpp`
 - Create: `test/test_web_module/test_globals.cpp`
 
@@ -613,7 +613,7 @@ git commit -m "test(web): add failing tests for buildJson() — red phase"
 
 ## Task 5: Create `web.h/.cpp` — Make Web Tests Pass
 
-**Files:**
+#### Files:
 - Create: `src/web.h`
 - Create: `src/web.cpp`
 
@@ -771,7 +771,7 @@ git commit -m "feat(web): extract web module; buildJson() inline in web.h for na
 
 ## Task 6: Create `influx.h/.cpp`
 
-**Files:**
+#### Files:
 - Create: `src/influx.h`
 - Create: `src/influx.cpp`
 
@@ -858,7 +858,7 @@ git commit -m "feat(influx): extract influx module; logAccessEvent gains client_
 
 ## Task 7: Create `mqtt.h/.cpp`
 
-**Files:**
+#### Files:
 - Create: `src/mqtt.h`
 - Create: `src/mqtt.cpp`
 
@@ -927,7 +927,7 @@ git commit -m "feat(mqtt): extract mqtt module"
 
 ## Task 8: Slim `main.cpp` — Remove Extracted Code
 
-**Files:**
+#### Files:
 - Modify: `src/main.cpp`
 
 Now that all extracted functions exist in their modules, remove them from `main.cpp` and add the new `#include` lines. This is the highest-risk task — do it incrementally with a compile check after each group.
@@ -1035,7 +1035,7 @@ git commit -m "refactor(main): remove extracted functions; main.cpp is now thin 
 
 ## Task 9: Update `auth.h` — Fix `logAccessEvent()` Call Sites
 
-**Files:**
+#### Files:
 - Modify: `src/auth.h`
 
 The `logAccessEvent()` signature changed: it now takes a `client_ip` parameter. Update all call sites in `auth.h` to pass the client IP, and remove the old inline implementation.
@@ -1124,12 +1124,12 @@ git commit --allow-empty -m "chore: firmware refactor complete — 124 tests pas
 
 ## Task 11: Frontend — Inline Login & Pre-Auth Chart
 
-**Files:**
+#### Files:
 - Modify: `data/index.html`
 
 No server-side changes needed. `/history` is already unauthenticated. The changes are purely in the HTML/JS.
 
-**What to change:**
+#### What to change:
 1. Add a login panel (shown when unauthenticated)
 2. Move `loadHistory()` / chart initialization to fire on page load (before auth check)
 3. Sensor readings (WebSocket) remain visible pre-auth
@@ -1197,7 +1197,7 @@ Find the existing `DOMContentLoaded` listener and the `authFetch` / token-check 
 **Remove:** The redirect to `/auth/login` on missing/invalid token.
 **Add:** Show the login panel instead.
 
-**Add `doLogin()` function:**
+#### Add `doLogin()` function:
 
 ```javascript
 async function doLogin() {
@@ -1224,7 +1224,7 @@ async function doLogin() {
 }
 ```
 
-**Update `logout()` function:**
+#### Update `logout()` function:
 
 ```javascript
 async function logout() {
@@ -1238,7 +1238,7 @@ async function logout() {
 }
 ```
 
-**Update page load token check:**
+#### Update page load token check:
 
 ```javascript
 document.addEventListener('DOMContentLoaded', () => {
@@ -1295,7 +1295,7 @@ git commit -m "feat(ui): inline login form on landing page; trend chart visible 
 
 ## Task 12: Update `CLAUDE.md`
 
-**Files:**
+#### Files:
 - Modify: `CLAUDE.md`
 
 - [ ] **Step 1: Update test count**

@@ -1,7 +1,7 @@
 ---
 name: sauna-status-patterns
 description: Coding patterns extracted from SaunaStatus git history — ESP32 embedded firmware, TDD with native tests, modular C++ architecture, and project workflow conventions
-version: 1.0.0
+version: 1.1.0
 source: local-git-analysis
 analyzed_commits: 62
 ---
@@ -34,30 +34,12 @@ chore(claude): add JSON validation hook, kicad-debug skill
 
 ## Code Architecture
 
-```
-src/
-├── main.cpp          # Thin orchestrator — globals, setup(), loop() only
-├── globals.h         # All extern declarations; ARDUINO guards for native compat
-├── sauna_logic.h     # Header-only pure C++ — config, sensors, JSON (natively testable)
-├── motor_logic.h     # Header-only pure C++ — motor clamping (natively testable)
-├── auth_logic.h      # Header-only pure C++ — auth, sessions, hashing (natively testable)
-├── ota_logic.h       # Header-only pure C++ — OTA versioning/rollback (natively testable)
-├── sensors.h/.cpp    # DHT/MAX31865/INA260 reading; stoveReading() inline in header
-├── web.h/.cpp        # HTTP handlers, WebSocket; buildJson() inline in header
-├── mqtt.h/.cpp       # MQTT connect/publish/subscribe/discovery
-├── influx.h/.cpp     # InfluxDB write operations
-└── auth.h            # Auth route handlers, requireAdmin(), NVS persistence
+→ See **CLAUDE.md `## Architecture`** for the full annotated file tree with line counts. Summary:
 
-test/
-├── test_sensor/          # fmtVal, c2f, f2c, JSON null handling
-├── test_config/          # 3-tier config merge logic
-├── test_websocket/       # buildJsonFull() output and stale detection
-├── test_auth/            # Auth sessions, tokens, password, user store
-├── test_ota/             # OTA version parsing, manifest, rollback
-├── test_sensor_module/   # stoveReading() fallback logic
-├── test_web_module/      # buildJson() struct assembly
-└── test_motor_logic/     # motorClampCW() clamping behavior
-```
+- `*_logic.h` files (sauna, auth, ota, motor) — header-only pure C++, no Arduino deps, natively testable
+- `*.h/.cpp` pairs (sensors, web, mqtt, influx, auth) — portable declarations in `.h`, Arduino-dependent implementations in `.cpp`
+- `globals.h` — single source of truth for all `extern` declarations; hardware objects in `#ifdef ARDUINO` guards
+- `main.cpp` — thin orchestrator only; all logic lives in modules
 
 ## TDD Workflow
 
@@ -92,48 +74,15 @@ When refactoring `main.cpp` into modules:
 
 ## Sensor Patterns
 
-Always refer to `.claude/rules/sensor-patterns.md` for detailed rules. Key invariants:
+→ See skill **`esp32-sensor-patterns`** for the full checklist, code examples, and consumer audit table.
 
-- **Set to `NAN` on failure** — never retain stale values
-- **Use `||` not `&&`** for `last_ok_ms` updates (either channel alive = sensor alive)
-- **Each sensor fails independently** — no cross-sensor pollution
-- **`isSensorStale()` in `sauna_logic.h`** — centralized staleness logic; `last_ok_ms==0` is always stale
-- **Apply NaN/stale checks to ALL consumers**: JSON, MQTT, InfluxDB, PID, serial
+Key invariants: clear to `NAN` on failure; `||` not `&&` for `last_ok_ms`; apply both `!isnan()` and `!isSensorStale()` at every consumer — neither substitutes for the other.
 
-## Config System Conventions
+## Config System
 
-Three-tier persistence — always add new config keys to ALL tiers:
+→ See skill **`embedded-config-layering`** for the full pattern, code examples, and common mistakes.
 
-| Tier | Mechanism | Example |
-|------|-----------|---------|
-| 1. Build flags | `#ifndef`-guarded `#define` in source | `#ifndef STALE_THRESHOLD_MS` |
-| 2. Fleet defaults | `/config.json` in LittleFS | `"sensor_read_interval_ms": 2000` |
-| 3. Per-device NVS | `Preferences`, guarded by `prefs.isKey()` | `prefs.putUInt("sri", val)` |
-
-Document every new build-flag in the CLAUDE.md Build-Flag Overrides table.
-
-## HTTP Response Conventions
-
-| Outcome | Status | Body |
-|---------|--------|------|
-| Success (mutation) | 200 | `{"ok":true}` |
-| Validation failure | 400 | `{"ok":false,"error":"<message>"}` |
-| Unauthorized | 401 | `{"error":"unauthorized"}` |
-| Conflict | 409 | `{"error":"user limit reached"}` |
-
-`handleConfigSave()` uses `goto send_error` — validate everything first, apply+persist in one block at the end. Never apply partial state on validation failure.
-
-## Validation After Every Edit
-
-After any file change, immediately validate:
-
-| File type | Command |
-|-----------|---------|
-| C++ / `.h` | `pio run` |
-| JSON | `python3 -m json.tool <file>` |
-| Functional change | `pio test -e native` |
-
-**Never leave a broken state and continue.** Fix validation errors before the next step.
+When adding a new config key, add it to ALL three tiers and document the build flag in CLAUDE.md's Build-Flag Overrides table.
 
 ## Testing Patterns
 
@@ -158,11 +107,24 @@ When touching these files, check the paired file too:
 ## CLAUDE.md Maintenance
 
 After any of these changes, update CLAUDE.md:
-- New `#define` build flag → add to Build-Flag Overrides table
-- New NVS key → add to NVS Persistence table
-- New HTTP route → add to HTTP Server table
-- New test suite → add to Unit Tests section with test count
-- New module → add to Architecture section
+- New `#define` build flag → add to **Build-Flag Overrides** table
+- New NVS key → add to **NVS Persistence** table
+- New HTTP route → add to **HTTP Server** table
+- New test suite → add to **Unit Tests** section with test count
+- New module → add to **Architecture** section
+
+## HTTP Response Conventions
+
+→ See **CLAUDE.md `## HTTP Response Conventions`** for the full table. Quick summary:
+
+| Outcome | Status | Body pattern |
+|---------|--------|------|
+| Success | 200 | `{"ok":true}` |
+| Validation failure | 400 | `{"ok":false,"error":"..."}` |
+| Unauthorized | 401 | `{"error":"unauthorized"}` |
+| Conflict | 409 | `{"error":"user limit reached"}` |
+
+`handleConfigSave()` uses `goto send_error` — validate everything first, apply+persist atomically.
 
 ## Security Invariants
 

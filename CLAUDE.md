@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## MCP Server Configuration
 
-MCP servers are configured in `.mcp.json`, NOT in `settings.json` under `mcpServers`. Always check `.mcp.json` first when diagnosing MCP issues. After config changes, advise user to restart Claude Code.
+→ Use skill **`diagnose-mcp-servers`** for full step-by-step diagnostics (config location, `enabledMcpjsonServers`, binary, Python deps, restart).
 
-- KiCad MCP server (Seeed-Studio) is configured globally in `~/.mcp.json`
-- If MCP server not showing: check `enabledMcpjsonServers` in `settings.json`, verify Python dependencies (`kicad-skip`, NOT `skip-python`), and restart Claude Code
-- Known issue: upstream Seeed-Studio package has broken imports that may need patching
+Project-specific facts:
+- Config lives in `~/.mcp.json` (global) — NOT `settings.json > mcpServers`
+- KiCad MCP Python package is **`kicad-skip`** (NOT `skip-python`); module name is `skip` (`import skip`, not `import kicad_skip`)
+- Known upstream issue: Seeed-Studio server may have broken imports requiring a manual source patch
+- All config changes require a full Claude Code restart — no hot-reload
 
 ## Settings File Conventions
 
@@ -20,26 +22,21 @@ This project uses Python and C/C++ (ESP32 Arduino). Configuration values should 
 
 ### Config Persistence
 
-Three-tier system — later tiers win. Applied in order during `setup()`:
+→ See skill **`embedded-config-layering`** for the full pattern with code examples and common mistakes.
 
-1. **Build-flag defaults** — `#define` constants in `main.cpp`, all guarded with `#ifndef` so they can be overridden via `-D` in `platformio.ini` without touching source.
-2. **Fleet defaults** — `/config.json` in LittleFS, loaded by `loadLittleFSConfig()`. Missing file is silently ignored. JSON parse errors are logged and the layer is skipped.
-3. **Per-device NVS** — namespace `sauna`, loaded via `Preferences`. Each key is guarded by `prefs.isKey()` — a missing NVS key must never silently revert a Layer 2 value.
+Three tiers applied in order during `setup()` — later wins: build-flag `#define`s → LittleFS `/config.json` → NVS namespace `sauna`.
 
-Key rules:
-- Setpoints are stored internally in **°C**; the HTTP/MQTT API accepts and returns **°F**. Convert at the boundary, not inside logic.
-- `savePrefs()` writes csp/bsp/cen/ben/omx/imx. Runtime-only fields (sri/slg/sip/dn) are written inline with `prefs.put*()` in `handleConfigSave()`.
-- `static_ip` and `device_name` require a restart to take effect — include `"restart_required":true` in the HTTP response when these change.
-- `handleConfigSave()` uses a **staged validation pattern**: declare all new values, validate every field, then apply and persist in one block at the end. Never apply a partial update on validation failure.
+Critical rules specific to this project:
+- Setpoints stored internally in **°C**; HTTP/MQTT API accepts/returns **°F** — convert at the boundary only
+- Every NVS read must be guarded by `prefs.isKey()` — missing key must never revert a fleet config value
+- `handleConfigSave()` uses staged validation: declare all candidates → validate all → apply+persist in one block; never apply partial state on failure
+- `static_ip` / `device_name` require restart → include `"restart_required":true` in HTTP response
 
 ### Sensor Handling
 
-- All sensor floats are initialized to `NAN` at declaration. **Never retain a stale value** — clear to `NAN` on any read failure or timeout.
-- `ceiling_last_ok_ms` / `bench_last_ok_ms` are updated using `||` (either temp **or** humidity succeeding counts as "sensor alive"). Using `&&` falsely kills the sensor when one channel fails.
-- Staleness is evaluated at read time via `isSensorStale(last_ok_ms, millis(), STALE_THRESHOLD_MS)` in `sauna_logic.h`. `last_ok_ms == 0` (never read) is always stale.
-- PID controllers guard on both `!isnan()` **and** `!isSensorStale()` before calling `Compute()`. Neither check substitutes for the other.
-- INA260 is optional — guarded by `ina260_ok`. All power fields are omitted from InfluxDB and JSON when `ina260_ok` is false.
-- InfluxDB writes omit any field whose value is `NAN` rather than writing it as zero or a sentinel.
+→ See skill **`esp32-sensor-patterns`** for checklist, code examples, and consumer audit table.
+
+Key invariants: all sensor floats init to `NAN`; clear to `NAN` on any read failure; use `||` (not `&&`) for `last_ok_ms` updates; `isSensorStale()` and `!isnan()` are separate guards — both required at every consumer. INA260 is optional (`ina260_ok`); omit all power fields from JSON/InfluxDB when absent.
 
 ### Logging Configuration
 
@@ -60,26 +57,30 @@ ESP32-based sauna automation system. Monitors temperature/humidity via PT1000 (s
 
 This is an ESP32 embedded project (sauna controller) using Arduino/PlatformIO. Key technologies: C++, ESP32, WebSocket, DHT sensors, KiCad for PCB design. Always consider memory constraints and real-time requirements when suggesting code changes.
 
-## ESP32 Project Conventions
-
-- Platform: ESP32 with web interface (HTML/JSON APIs, WebSocket)
-- Config uses a 3-tier persistence system — check existing config architecture before modifying
-- Sensor code must handle independent failure per sensor (no stale values on disconnect)
-- Logging intervals and sensor read intervals are separate configurable defines
-- Always verify JSON config files have no trailing commas after editing
-- Run `pio run` after any C/C++ changes
-
-## Coding Conventions
-
-When modifying sensor-related code, ensure stale/disconnected sensor values are handled explicitly (set to NaN or sentinel value, not retained). Always test the disconnect/reconnect path.
+- **After any C/C++ change**, run `pio run` to verify compilation before considering the change done.
+- **Key paths:** `src/` for firmware source, `include/` for headers, `data/` for LittleFS web assets, `test/` for native unit tests.
+- **Config:** 3-tier persistence system — build-flag defaults → LittleFS `config.json` → per-device NVS. Later tiers win.
 
 ## Hardware & Sensors
 
-When modifying sensor or hardware-related code, always handle failure/disconnection states explicitly — never retain stale values when a device goes offline.
+→ See skill **`esp32-sensor-patterns`**. Clear to `NAN` on read failure; use `||` not `&&` for `last_ok_ms`; apply validity checks to every consumer (JSON, PID, MQTT, InfluxDB, serial).
+
+## Skills & Knowledge
+
+Project-specific skills are in `.claude/skills/`. Reference these before implementing known patterns:
+
+- `kicad-erc-drc-workflow` — ERC/DRC violation fixes, wire format, PCB parity, unconnected-* nets
+- `esp32-sensor-patterns` — sensor staleness, NaN handling, PID guards
+- `esp32-auth-bearer` — Bearer token auth implementation
+- `esp32-ota-update` — OTA manifest flow and boot health
+
+For KiCad-related work, check `.claude/skills/` and `~/.claude/skills/learned/` for ERC/DRC patterns and PCB text-editing lessons (e.g., `kicad-pcb-text-edit.md`, `kicad-schematic-text-edit.md`).
 
 ## Code Quality
 
 After making bug fixes or feature changes to ESP32/embedded code, review all related state variables to ensure they are properly reset or invalidated on error conditions.
+
+When editing JSON files (especially `settings.json`, `.mcp.json`, `config.json`), always validate syntax after changes — no trailing commas, proper bracket closure. Run `python3 -m json.tool <file>` to validate.
 
 ### Post-Edit Validation
 
@@ -94,12 +95,6 @@ After any code edit, immediately run the most relevant validation — never assu
 
 If validation fails, fix the issue before moving on. Do not leave a broken state and continue with other changes.
 
-### JSON Editing Rules
-
-When editing JSON files, always validate syntax after changes — especially check for trailing commas. Use `python3 -m json.tool <file>` to validate.
-
-After editing any JSON file, always validate it (e.g., `python3 -c "import json; json.load(open('file.json'))"`) to catch trailing commas or syntax errors.
-
 ## Testing
 
 After implementing features, run the full test suite and report pass/fail counts:
@@ -110,9 +105,7 @@ pio test -e native
 
 For auth/access changes, verify no privilege escalation in role defaults (default role must be `""`, never `"admin"`).
 
-## Build & Testing
-
-After making firmware changes, remind the user to compile with `pio run` and check for warnings. IntelliSense errors in VSCode may be false positives — distinguish between IDE warnings and actual compiler errors.
+IntelliSense errors in VSCode may be false positives — distinguish between IDE warnings and actual compiler errors (`pio run`).
 
 ## Build Commands
 
@@ -142,6 +135,50 @@ pio test -e native -f test_gpio_config
 All firmware commands default to the `lb_esp32s3` environment (board: `lolin_s3`, ESP32-S3 N16R8). Unit tests use the `native` environment.
 
 ## Architecture
+
+### Source File Tree
+
+```
+src/
+├── main.cpp        ~874 lines  Thin orchestrator: global definitions, setup(), loop(), loadLittleFSConfig(), savePrefs(), OTA helpers
+├── globals.h        100 lines  Extern declarations for all globals defined in main.cpp; Arduino types in #ifdef ARDUINO guards
+├── gpio_config.h     66 lines  GPIO pin assignments for LB-ESP32S3-N16R8; no Arduino deps — natively testable
+├── sauna_logic.h    134 lines  Portable pure-C++: c2f/f2c/fmtVal, isSensorStale, SaunaConfig+merge, buildJsonFull (23-field JSON)
+├── auth_logic.h     352 lines  Portable pure-C++: 64-char token sessions, SHA-256 passwords, user store, authAttemptLogin()
+├── ota_logic.h      121 lines  Portable pure-C++: version parsing/compare, OtaManifest, boot-health, partial-download detection
+├── motor_logic.h     16 lines  Portable pure-C++: motorClampCW() — CW step clamping at max_steps ceiling
+├── sensors.h         32 lines  stoveReading() inline (natively testable); readSensors()/checkOverheat() declared (Arduino-only)
+├── sensors.cpp      103 lines  readSensors() — DHT21×2, MAX31865, INA260; checkOverheat() rising-edge state machine
+├── web.h             80 lines  buildJson() inline (natively testable); all handle*() HTTP and webSocketEvent() declared
+├── web.cpp          782 lines  HTTP route handlers, WebSocket event handler, buildJsonFull() calls
+├── mqtt.h            20 lines  mqttConnect/Callback/PublishState/PublishDiscovery declared (Arduino-only)
+├── mqtt.cpp         195 lines  MQTT lifecycle, HA Discovery, sauna/state publish, control topic subscriptions
+├── influx.h          21 lines  writeInflux() and logAccessEvent() declared (Arduino-only)
+├── influx.cpp        59 lines  InfluxDB write (60s interval, NaN fields omitted), access event logging
+├── auth.h           195 lines  requireAdmin() Bearer check; auth HTTP handlers; NVS user-store I/O; security headers
+└── secrets.h         26 lines  WiFi/InfluxDB/MQTT credentials + AUTH_ADMIN_USER/PASS — NOT committed to git
+
+include/
+└── README            PlatformIO placeholder (all project headers live in src/)
+```
+
+### Architecture Overview
+
+#### Config (3-tier, later wins)
+1. Build flags (`#define` + `-D` in `platformio.ini`) — compile-time defaults, all `#ifndef`-guarded
+2. LittleFS `/config.json` — fleet-wide defaults uploaded with `pio run -t uploadfs`
+3. NVS namespace `sauna` — per-device overrides written by HTTP/MQTT handlers; `prefs.isKey()` guards prevent missing keys from reverting Layer 2 values
+
+#### Auth (Bearer token)
+- Tokens: 32-byte random, hex-encoded (64 chars), 1-hour TTL, 10 concurrent sessions
+- Passwords: SHA-256(salt_bytes || password_bytes), constant-time compare
+- Login: optional external HTTP adapter first; `ADAPTER_ERROR` falls through to NVS; `ADAPTER_REJECTED` stops immediately
+- First-boot emergency admin seeded from `secrets.h` if NVS slot 0 is empty
+
+#### WebSocket live updates
+- `buildJsonFull()` in `sauna_logic.h` serializes 23 fields every sensor read cycle (default 2 s)
+- NaN sensor values → JSON `null`; stale readings (>10 s since last ok) → `null` + `cst`/`bst` flags
+- New clients receive the full state immediately on connect; subsequent updates are broadcast to all
 
 ### Firmware: `src/main.cpp`
 
@@ -267,7 +304,7 @@ Both ULN2003 boards powered at 5V.
 
 Output 0–255 is linearly mapped to 0–`max_steps` for the corresponding motor.
 
-**Dual-tuning (both controllers use the same values):**
+#### Dual-tuning (both controllers use the same values):
 
 | Mode | Kp | Ki | Kd | Condition |
 |---|---|---|---|---|
@@ -737,6 +774,21 @@ Right header (20 pins + 2 GND): GND, GPIO43, GPIO44, GPIO1, GPIO2, GPIO42–39, 
 ```
 
 Both `AUTH_ADMIN_USER` and `AUTH_ADMIN_PASS` are enforced by `#error` guards at the top of `main.cpp` — omitting either causes a compile error.
+
+## Common Pitfalls
+
+Issues that have bitten this project more than once — check these first before debugging.
+
+| Pitfall | Symptom | Fix |
+|---|---|---|
+| **Stale sensor values retained** | Vent moves on old data after sensor disconnects | Clear to `NAN` on read failure; use `\|\|` not `&&` for `last_ok_ms` |
+| **JSON trailing comma** | `config.json` / `settings.json` silently rejected at boot or startup | Always run `python3 -m json.tool <file>` after any JSON edit |
+| **Wrong pip package** | MCP server crashes on import (`kicad-skip` functionality missing) | Package is `kicad-skip`, NOT `skip-python`; verify name before installing |
+| **KiCad PCB net regex too loose** | New nets inserted inside a pad block, corrupting the footprint | Use `^\t\(net \d+ "` (exactly 1 tab) — `\s+` also matches pad-internal refs at 3-tab indent |
+| **LittleFS partition named wrong** | `partition "spiffs" could not be found` at boot | Partition CSV entry must be named `spiffs`, not `littlefs` |
+| **Stale detection vs NaN — two separate checks** | Stale-but-non-NaN reading drives PID motors | `isSensorStale()` in `buildJsonFull()` guards display only; PID needs its own `!isnan()` AND `!isSensorStale()` |
+| **`&&` vs `\|\|` on last_ok_ms** | Sensor falsely declared dead when only humidity channel fails | Use `\|\|`: either temp OR humidity succeeding means sensor is alive |
+| **`extra_scripts` uploads both firmware and FS** | Overwrites customized `data/` image unexpectedly | Use `pio run -t upload` (firmware only) or `pio run -t uploadfs` (FS only) instead of bare `pio run` |
 
 ## Lessons Learned
 

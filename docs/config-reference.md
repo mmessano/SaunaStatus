@@ -55,7 +55,7 @@ Uploaded with the filesystem image (`pio run -t uploadfs`). Overrides Tier 1 for
 
 Values outside the valid range are silently ignored; the Tier 1 default remains in effect.
 
-**Example `/config.json`:**
+#### Example `/config.json`:
 
 ```json
 {

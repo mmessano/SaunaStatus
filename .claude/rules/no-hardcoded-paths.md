@@ -4,7 +4,7 @@
 
 Any path under the home directory **must** use `~/` — never a hardcoded absolute path containing a username.
 
-**Applies to:**
+#### Applies to:
 - `.claude/settings.local.json` (permissions, hooks)
 - `.claude/settings.json`
 - Any JSON, YAML, TOML, or INI config file committed to the repo

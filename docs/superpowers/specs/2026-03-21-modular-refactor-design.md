@@ -101,17 +101,17 @@ Owns all sensor I/O and health tracking.
 
 **Extracted from:** `loop()` sensor read block (~lines 1677–1730 of main.cpp)
 
-**Functions:**
+#### Functions:
 - `readSensors()` — reads DHT21 ceiling, DHT21 bench, MAX31865 stove, INA260 power; updates globals; applies `||` rule for `last_ok_ms`
 - `checkOverheat()` — moved verbatim from main.cpp; preserves the rising-edge state-machine behavior (motors driven only on alarm onset transition via `if (hot && !overheat_alarm)`, not on every loop tick); returns `bool` (alarm active). Motor drive is **inside** `checkOverheat()`, not in the caller. Has CheapStepper dependency; **not natively testable** — verified by on-device integration testing only.
 - `stoveReading()` — moved verbatim from main.cpp; returns `stove_temp` if valid, `(ceiling_temp + bench_temp) / 2.0f` if both air sensors are valid, otherwise `NAN`; pure function, no side effects
 
-**Why `checkOverheat()` is moved verbatim (not refactored):**
+#### Why `checkOverheat()` is moved verbatim (not refactored):
 The current implementation uses a rising-edge guard (`if (hot && !overheat_alarm)`) to drive motors only on the alarm-onset transition. Any restructuring that drives motors outside this guard would spam `newMove()` every 2 seconds while alarmed and corrupt CheapStepper's step tracking. Testability is achieved for `stoveReading()` and the sensor-value logic; `checkOverheat()` retains its hardware dependency.
 
 **`loop()` in `main.cpp` uses `checkOverheat()`'s return value only to suppress PID computation** — it does NOT drive motors based on the return value. Motor drive remains exclusively inside `checkOverheat()`.
 
-**Critical invariants preserved:**
+#### Critical invariants preserved:
 - `ceiling_last_ok_ms` / `bench_last_ok_ms` updated with `||` (either temp OR humidity succeeding counts as alive)
 - Sensor floats cleared to `NAN` on any read failure — never retain stale values
 - INA260 reads guarded by `ina260_ok` flag
@@ -121,7 +121,7 @@ Owns all HTTP and WebSocket presentation logic.
 
 **Extracted from:** All `handle*` functions and `webSocketEvent()` from main.cpp
 
-**Functions:**
+#### Functions:
 - `webSocketEvent(num, type, payload, len)` — WebSocket connection handler
 - `buildJson(buf, len)` — assembles SensorValues/MotorState/PIDState from globals; calls `buildJsonFull()` from sauna_logic.h
 - `handleRoot()`, `handleLog()`, `handleDeleteStatus()`, `handleDeleteControl()`
@@ -138,7 +138,7 @@ Owns the MQTT connection lifecycle and publish/subscribe logic.
 
 **Extracted from:** `mqttConnect()`, `mqttCallback()`, `mqttPublishState()`, `mqttPublishDiscovery()`
 
-**Functions:**
+#### Functions:
 - `mqttConnect()` — connects to broker; subscribes to topics; publishes discovery configs
 - `mqttCallback(topic, payload, len)` — handles incoming messages (PID enable/disable, setpoint changes)
 - `mqttPublishState()` — publishes full JSON to `sauna/state`
@@ -149,7 +149,7 @@ Owns all InfluxDB write operations.
 
 **Extracted from:** `writeInflux()` in main.cpp; `logAccessEvent()` from auth.h
 
-**Functions:**
+#### Functions:
 - `writeInflux()` — writes `sauna_status` (sensor fields, NaN omitted) and `sauna_control` (motor/PID state) every 60 seconds
 - `logAccessEvent(const char *event, const char *username, const char *auth_source, const char *client_ip)` — writes login/logout/failure events to `sauna_webaccess`. The `client_ip` parameter is added vs. the current signature; callers pass `server.client().remoteIP().toString().c_str()`. This removes the `server` dependency from inside the function and keeps `influx.h` free of WebServer dependency. Existing call sites in `auth.h` handlers update their call to pass the IP.
 
@@ -198,7 +198,7 @@ Applied during extraction. No behavioral changes.
 
 ## Test-Driven Development Process
 
-**For each new module, in order:**
+#### For each new module, in order:
 
 1. **Write tests first** — before any `.cpp` implementation code
 2. **Run tests** — confirm they fail (red)
@@ -210,7 +210,7 @@ Applied during extraction. No behavioral changes.
 
 **Note:** CLAUDE.md documents 81 tests; that count is stale. 32 additional tests were added to `test_config/` and `test_auth/` since CLAUDE.md was last updated. The correct authoritative baseline is 113, verified by running the suite. CLAUDE.md will be updated to reflect 113 in a separate task.
 
-**New test suites:**
+#### New test suites:
 
 #### `test/test_sensor_module/`
 Named `test_sensor_module` (not `test_sensors`) to avoid ambiguity with the existing `test/test_sensor/` suite (which tests `sauna_logic.h`). Both suites coexist and run together under `pio test -e native`.
@@ -221,11 +221,11 @@ Tests for `checkOverheat()` and `stoveReading()` — the pure functions extracte
 
 Planned native test cases:
 
-**`checkOverheat()` — not natively testable:**
+#### `checkOverheat()` — not natively testable:
 
 `checkOverheat()` has CheapStepper dependency and is excluded from this native test suite. On-device integration testing only.
 
-**`stoveReading()` — pure fallback logic (verified against main.cpp lines 367–374):**
+#### `stoveReading()` — pure fallback logic (verified against main.cpp lines 367–374):
 
 Exact behavior: returns `stove_temp` if valid; returns `(ceiling_temp + bench_temp) / 2.0f` if both air sensors are non-NaN; otherwise returns `NAN`. There is no single-sensor fallback — both air sensors must be valid for the fallback to activate.
 
@@ -236,7 +236,7 @@ Test cases:
 - stove_temp NaN, only bench valid (ceiling NaN) → returns NaN (both required)
 - stove_temp NaN, ceiling and bench both NaN → returns NaN
 
-**Test fixture approach for native sensor module tests:**
+#### Test fixture approach for native sensor module tests:
 
 The test binary in `test/test_sensor_module/` provides a `test_globals.cpp` that defines stub values for all globals referenced by `checkOverheat()` and `stoveReading()` (e.g., `float ceiling_temp = NAN;`, `bool overheat_alarm = false;`, etc.). These are simple variable definitions, no hardware objects needed.
 
