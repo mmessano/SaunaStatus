@@ -3472,7 +3472,6 @@
 		(at 254.92 125.73)
 		(uuid "723ed4ee-8294-4466-b55d-60d9bd12055e")
 	)
-)
 	(symbol
 		(lib_id "power:+3V3")
 		(at 278.13 120.65 270)
@@ -4424,7 +4423,6 @@
 		(at 122.92 142.24)
 		(uuid "51a57e3a-f2b0-43e5-84d9-030c87f0cc4e")
 	)
-)
 	(symbol
 		(lib_id "power:PWR_FLAG")
 		(at 152.4 21.59 0)
