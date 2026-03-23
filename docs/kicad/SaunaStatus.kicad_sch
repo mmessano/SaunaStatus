@@ -2214,6 +2214,7 @@
 		)
 		(uuid "f94db467-2519-433e-8d94-865934c4fc2d")
 	)
+	(symbol
 		(lib_id "power:PWR_FLAG")
 		(at 152.4 102.87 0)
 		(unit 1)
