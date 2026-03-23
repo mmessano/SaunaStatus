@@ -116,8 +116,9 @@ log "Running native tests..."
 TEST_OUT="$(cd "$REPO" && pio test -e native 2>&1)" && TEST_EXIT=0 || TEST_EXIT=$?
 TEST_PASS="$(echo "$TEST_OUT" | grep -cE '^(PASS|OK)' || true)"
 TEST_FAIL="$(echo "$TEST_OUT" | grep -cE '^(FAIL|ERROR)' || true)"
-TEST_SUMMARY_LINE="$(echo "$TEST_OUT" | grep -E 'Tests [0-9]' | tail -1 || true)"
-TEST_FAILURES="$(echo "$TEST_OUT" | grep -E '^(FAIL|ERROR)' | head -10 || true)"
+# PlatformIO test summary: "X Tests Y Failures Z Ignored" or "[PASSED]"/"[FAILED]"
+TEST_SUMMARY_LINE="$(echo "$TEST_OUT" | grep -E '([0-9]+ Tests|PASSED|FAILED|passed|failed)' | tail -3 || true)"
+TEST_FAILURES="$(echo "$TEST_OUT" | grep -E '(:FAIL|:ERROR)' | head -10 || true)"
 
 if [[ "$TEST_EXIT" -eq 0 ]]; then
     TEST_STATUS="ALL PASSED"
