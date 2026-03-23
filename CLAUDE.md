@@ -134,6 +134,27 @@ pio test -e native -f test_gpio_config
 
 All firmware commands default to the `lb_esp32s3` environment (board: `lolin_s3`, ESP32-S3 N16R8). Unit tests use the `native` environment.
 
+## Git Hooks
+
+`scripts/update-handoff.sh` regenerates `HANDOFF.md` after every commit (last 10 commits,
+TODO scan, native test results, build warnings, pitfalls from this file). It is installed
+as `.git/hooks/post-commit`, which is **not committed to git** — you must install it manually
+on each new clone:
+
+```bash
+ln -s ../../scripts/update-handoff.sh .git/hooks/post-commit
+# or copy:
+cp scripts/update-handoff.sh .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+```
+
+To regenerate `HANDOFF.md` manually without committing:
+
+```bash
+bash scripts/update-handoff.sh          # skips build if no C/C++ files changed
+FORCE_BUILD=1 bash scripts/update-handoff.sh   # always runs pio build
+SKIP_BUILD=1 bash scripts/update-handoff.sh    # always skips pio build
+```
+
 ## Architecture
 
 ### Source File Tree
