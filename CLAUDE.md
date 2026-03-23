@@ -117,26 +117,29 @@ After making firmware changes, remind the user to compile with `pio run` and che
 ## Build Commands
 
 ```bash
-# Build firmware
-pio run
+# Build firmware (compile only)
+pio run -t build
 
-# Upload firmware to device
-pio run -t upload
-
-# Build and upload filesystem (web UI in data/)
-pio run -t uploadfs
+# ⚠ targets = upload, uploadfs in platformio.ini — bare `pio run` uploads BOTH firmware AND
+# filesystem. Use explicit targets to avoid overwriting a customized filesystem image:
+pio run -t upload    # firmware only
+pio run -t uploadfs  # filesystem only (web UI in data/)
 
 # Open serial monitor (115200 baud)
+# ⚠ Two USB connectors on board — use UART connector (GPIO43/44), NOT USB-C OTG (GPIO19/20)
 pio device monitor
 
 # Clean build
 pio run -t clean
 
-# Run native unit tests (no device required)
+# Run all native unit tests (no device required)
 pio test -e native
+
+# Run a single test suite
+pio test -e native -f test_gpio_config
 ```
 
-All firmware commands default to the `upesy_wroom` environment (board: `esp32doit-devkit-v1`, ESP32-WROOM-32). Unit tests use the `native` environment.
+All firmware commands default to the `lb_esp32s3` environment (board: `lolin_s3`, ESP32-S3 N16R8). Unit tests use the `native` environment.
 
 ## Architecture
 
@@ -215,12 +218,12 @@ Contains:
 
 | Sensor | Type | Interface | GPIO | Notes |
 |---|---|---|---|---|
-| Stove | PT1000 via MAX31865 | Hardware SPI (VSPI) | CS=GPIO5, SCK=GPIO18, MISO=GPIO19, MOSI=GPIO23 | 3-wire mode; RREF=4300.0Ω, RNOMINAL=1000.0Ω |
-| Ceiling | DHT21 (AM2301) | 1-wire | GPIO16 | External; connects via J4 (4-pin header, Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND); 10kΩ pull-up DATA→VCC |
-| Bench | DHT21 (AM2301) | 1-wire | GPIO17 | External; connects via J5 (4-pin header, Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND); 10kΩ pull-up DATA→VCC |
-| Power | INA260 | I2C | SDA=GPIO4, SCL=GPIO13 | Integrated 2mΩ shunt; no external resistor; optional — gracefully disabled if absent |
+| Stove | PT1000 via MAX31865 | Hardware SPI | CS=GPIO42, SCK=GPIO41, MISO=GPIO40, MOSI=GPIO39 | 3-wire mode; RREF=4300.0Ω, RNOMINAL=1000.0Ω; `SPI.begin(SCK,MISO,MOSI)` required before `begin()` |
+| Ceiling | DHT21 (AM2301) | 1-wire | GPIO8 | External; connects via J4 (4-pin header, Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND); 10kΩ pull-up DATA→VCC |
+| Bench | DHT21 (AM2301) | 1-wire | GPIO9 | External; connects via J5 (4-pin header, Pin1=VDD, Pin2=DATA, Pin3=NC, Pin4=GND); 10kΩ pull-up DATA→VCC |
+| Power | INA260 | I2C | SDA=GPIO1, SCL=GPIO2 | Integrated 2mΩ shunt; no external resistor; optional — gracefully disabled if absent |
 
-SPI pins GPIO18/19/23 are reserved for MAX31865; do not use for other purposes.
+SPI pins GPIO39–42 are reserved for MAX31865; do not use for other purposes. All GPIO assignments are defined in `src/gpio_config.h` and verified by `pio test -e native` (test_gpio_config).
 
 Stove fault handling: any MAX31865 fault or temperature outside −200°C to 900°C sets `stove_temp = NAN` and prints the fault bits to serial.
 
@@ -232,19 +235,19 @@ Fallback: if `stove_temp` is NaN, `stoveReading()` returns the average of ceilin
 
 | IN pin | GPIO |
 |---|---|
-| IN1 | 21 |
-| IN2 | 25 |
-| IN3 | 26 |
-| IN4 | 14 |
+| IN1 | 4 |
+| IN2 | 5 |
+| IN3 | 6 |
+| IN4 | 7 |
 
 ### Inflow (lower vent) — CheapStepper → ULN2003 → 28BYJ-48
 
 | IN pin | GPIO |
 |---|---|
-| IN1 | 22 |
-| IN2 | 27 |
-| IN3 | 32 |
-| IN4 | 33 |
+| IN1 | 15 |
+| IN2 | 16 |
+| IN3 | 17 |
+| IN4 | 18 |
 
 Both ULN2003 boards powered at 5V.
 
@@ -424,11 +427,13 @@ All can be set in `platformio.ini` under `build_flags` using `-DNAME=value`:
 | `SETPOINT_MAX_F` | `300.0f` | Maximum valid setpoint (°F) |
 | `DEFAULT_SENSOR_READ_INTERVAL_MS` | `2000UL` | Default sensor read interval (ms) |
 | `DEFAULT_STATIC_IP` | `"192.168.1.200"` | Default device static IP |
-| `WS_JSON_BUF_SIZE` | `320` | WebSocket JSON output buffer (bytes) |
+| `WS_JSON_BUF_SIZE` | `384` | WebSocket JSON output buffer (bytes) |
 | `MQTT_BUF_SIZE` | `512` | MQTT client buffer size (bytes) |
 | `NTP_SERVER_LOCAL` | `"192.168.1.100"` | Primary NTP server |
 | `WIFI_GATEWAY_IP` | `192, 168, 1, 100` | WiFi gateway (IPAddress initializer) |
 | `WIFI_DNS_IP` | `8, 8, 8, 8` | Primary DNS (IPAddress initializer) |
+| `RREF` | `4300.0` | MAX31865 reference resistor value (Ω) |
+| `RNOMINAL` | `1000.0` | MAX31865 nominal resistance at 0°C (Ω) — PT1000 = 1000 |
 | `SENSOR_READ_INTERVAL_MIN_MS` | `500UL` | Minimum sensor read interval (ms) |
 | `SENSOR_READ_INTERVAL_MAX_MS` | `10000UL` | Maximum sensor read interval (ms) |
 | `SERIAL_LOG_INTERVAL_MIN_MS` | `1000UL` | Minimum serial log interval (ms) |
@@ -487,80 +492,23 @@ Tags on all points: `device=ESP32`, `SSID=<wifi-ssid>`.
 
 ## Unit Tests
 
-Tests run natively (no device required) using the Unity framework. Run with:
+Tests run natively (no device required) using the Unity framework.
 
-```bash
-pio test -e native
-```
+Total: **157 tests** across 9 suites.
 
-Total: **136 tests** across 8 suites (verified via `pio test -e native`).
+| Suite | Tests | What's covered |
+|---|---|---|
+| `test/test_sensor/` | 8 | `c2f`/`f2c`/`fmtVal`; NaN→null in JSON per sensor |
+| `test/test_config/` | 9 | 3-tier merge logic; range validation; NVS-wins-over-fleet |
+| `test/test_websocket/` | 12 | `buildJsonFull()` output; stale detection edge cases (threshold boundaries, `last_ok_ms==0`) |
+| `test/test_auth/` | 35 | Tokens, passwords, user store, login fallback, adapter orchestration |
+| `test/test_ota/` | 17 | Version parsing/comparison, manifest, rollback, partial download |
+| `test/test_sensor_module/` | 5 | `stoveReading()` fallback to ceiling/bench average (both required or NaN) |
+| `test/test_web_module/` | 6 | `buildJson()` struct assembly; INA260 absent path |
+| `test/test_motor_logic/` | 8 | `motorClampCW()` clamping at max; CCW floor at zero |
+| `test/test_gpio_config/` | 21 | Pin values, adjacency, uniqueness, restricted pins (boot/USB/OPI/strap), coil order |
 
-### `test/test_sensor/` — Sensor value formatting and JSON null handling (8 tests)
-
-- `test_fmtVal_nan` — NaN serializes as `"null"`
-- `test_fmtVal_valid` — valid float serializes as `"%.1f"`
-- `test_c2f` — Celsius-to-Fahrenheit: 0→32, 100→212, known sauna value
-- `test_f2c` — Fahrenheit-to-Celsius: 32→0, 212→100
-- `test_c2f_f2c_roundtrip` — round-trip precision within 0.01°
-- `test_ceiling_nan_gives_null_in_json` — ceiling NaN → `"clt":null` in JSON
-- `test_bench_nan_independent` — bench NaN does not affect ceiling
-- `test_both_sensors_nan` — all three temp fields null simultaneously
-
-### `test/test_config/` — 3-tier configuration merge logic (9 tests)
-
-- `test_sauna_config_defaults` — `SaunaConfig` defaults: 160°F / 120°F / PIDs off
-- `test_fleet_config_overrides_defaults` — Layer 2 values win over Layer 1
-- `test_out_of_range_rejected` — value above 300°F rejected; default preserved
-- `test_out_of_range_low_rejected` — value below 32°F rejected; default preserved
-- `test_nvs_wins_over_fleet` — Layer 3 beats Layer 2 when both set the same key
-- `test_nvs_missing_key_preserves_fleet` — absent NVS key leaves Layer 2 value intact
-- `test_partial_fleet_only_ceiling` — partial fleet layer doesn't clobber unset bench
-- `test_pid_enable_flag` — `has_ceiling_en` gate applies correctly
-- `test_nvs_can_disable_fleet_pid` — Layer 3 can override a Layer 2 PID enable to false
-
-### `test/test_websocket/` — `buildJsonFull()` output and stale detection (12 tests)
-
-- `test_json_contains_all_keys` — all 23 required keys present
-- `test_json_braces` — JSON starts with `{` and ends with `}`
-- `test_stale_ceiling_gives_null` — stale ceiling → `"clt":null` + `"cst":1`, bench unaffected
-- `test_stale_bench_gives_null` — stale bench → `"d5t":null` + `"bst":1`, ceiling unaffected
-- `test_fresh_readings_not_stale` — readings within threshold: `cst:0`, `bst:0`
-- `test_never_read_sensor_stale` — `last_ok_ms==0` is always stale
-- `test_stale_disabled_threshold_zero` — threshold=0 disables stale detection entirely
-- `test_overheat_alarm_in_json` — `overheat_alarm=true` → `"oa":1`
-- `test_motor_positions_in_json` — `ofs`/`ofd`/`ifs`/`ifd` values correct
-- `test_staleness_exactly_at_threshold_not_stale` — diff == threshold is NOT stale (strict `>`)
-- `test_staleness_one_over_threshold_is_stale` — diff > threshold IS stale
-- `test_staleness_threshold_zero_never_stale` — threshold=0 never stale regardless of timestamps
-
-### `test/test_auth/` — Auth system (35 tests)
-
-See **Authentication System** section for the full test list.
-
-### `test/test_ota/` — OTA logic (17 tests)
-
-See **OTA Update System** section for the full test list.
-
-### `test/test_sensor_module/` — `stoveReading()` fallback logic (5 tests)
-
-Named `test_sensor_module` (not `test_sensor`) to avoid ambiguity with the existing `test_sensor/` suite. Tests the inline function from `sensors.h` natively.
-
-- stove_temp valid → returns stove_temp
-- stove_temp NaN, ceiling and bench both valid → returns their average
-- stove_temp NaN, only ceiling valid (bench NaN) → returns NaN (both required)
-- stove_temp NaN, only bench valid (ceiling NaN) → returns NaN (both required)
-- stove_temp NaN, ceiling and bench both NaN → returns NaN
-
-### `test/test_web_module/` — `buildJson()` struct assembly (6 tests)
-
-Tests the inline `buildJson()` from `web.h` natively (no hardware dependencies).
-
-- `buildJson()` produces valid JSON (starts `{`, ends `}`)
-- `buildJson()` populates all 23 required keys
-- Stale ceiling sensor → `clt` and `clh` are null, `cst` is 1
-- Stale bench sensor → `d5t` and `d5h` are null, `bst` is 1
-- NaN stove → `tct` is null
-- INA260 absent (`ina260_ok = false`) → `pvolt`, `pcurr`, `pmw` are null
+Note: `test_sensor_module` is named to avoid ambiguity with `test_sensor`. `test_gpio_config` tests `src/gpio_config.h` — a pure `#define` header with no Arduino deps.
 
 ## Web UI
 
@@ -697,13 +645,31 @@ Files served from `data/` directory, uploaded via `pio run -t uploadfs`.
 
 ## platformio.ini Structure
 
-Two environments:
-- `upesy_wroom` (default) — ESP32 targets; board `esp32doit-devkit-v1`; filesystem `littlefs`; partition table `partitions_ota.csv`; `monitor_speed 115200`
+Three environments:
+- `lb_esp32s3` (default) — LB-ESP32S3-N16R8; board `lolin_s3`; 16 MB OPI flash/8 MB OPI PSRAM; `board_build.arduino.memory_type = qio_opi`; partition table `partitions_ota_16mb.csv`; `-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=0`
+- `upesy_wroom` (legacy reference only) — ESP32-WROOM-32 DevKit; board `esp32doit-devkit-v1`; partition table `partitions_ota.csv`. **Do not flash** — GPIO assignments in `gpio_config.h` target ESP32-S3 and will not match old hardware.
 - `native` — native unit tests only; `std=c++14`; `test_build_src = false`
 
 `extra_scripts = scripts/upload_fs.py` hooks the filesystem upload. `targets = upload, uploadfs` makes both firmware and filesystem upload by default.
 
-Library dependencies (`lib_deps` in `upesy_wroom`): Adafruit Unified Sensor, DHT sensor library, WebSockets (links2004), ESP8266 Influxdb (tobiasschuerg), Adafruit MAX31865, QuickPID (dlloydev), CheapStepper (tyhenry), PubSubClient (knolleary), Adafruit INA260, ArduinoJson (bblanchon). All pinned by semver range.
+### Partition Table Rules
+
+**The LittleFS partition must be named `spiffs`.** The Arduino ESP32 `LittleFS.begin()` call searches for a partition named `spiffs` by default — not `littlefs`. Using any other name causes `partition "spiffs" could not be found` at boot and LittleFS fails to mount. This has burned us twice.
+
+When creating or editing a partition CSV, verify:
+1. The filesystem partition name is `spiffs` (not `littlefs` or anything else)
+2. The subtype is `spiffs`
+3. Offsets and sizes sum to ≤ total flash size
+
+```
+# Correct — Arduino LittleFS finds this
+spiffs,     data, spiffs,   0x810000,  0x7F0000,
+
+# Wrong — LittleFS.begin() will not find this
+littlefs,   data, spiffs,   0x810000,  0x7F0000,
+```
+
+Library dependencies (shared via `[common_libs]`): Adafruit Unified Sensor, DHT sensor library, WebSockets (links2004), ESP8266 Influxdb (tobiasschuerg), Adafruit MAX31865, QuickPID (dlloydev), CheapStepper (tyhenry), PubSubClient (knolleary), Adafruit INA260, ArduinoJson (bblanchon). All pinned by semver range.
 
 ## NTP Time Sync
 
@@ -731,27 +697,6 @@ All JSON API responses follow these patterns:
 
 `handleConfigSave()` uses `goto send_error` to jump from any validation failure to a single error-emit block. This ensures no partial state is applied before a validation error is returned.
 
-## Unit Tests — Complete Suite
-
-Total: **136 tests** across 8 suites (verified via `pio test -e native`). Includes `test_sensor_module` (5 tests for `stoveReading()`), `test_web_module` (6 tests for `buildJson()`), and `test_motor_logic` (8 tests for `motorClampCW()`) added during subsequent refactors.
-
-### `test/test_auth/` — Auth system (35 tests)
-
-- Hex encode/decode: `test_bytes_to_hex`, `test_hex_to_bytes`
-- Constant-time comparison: `test_token_equal_same/different/empty_vs_nonempty`
-- Token operations: `test_short_token_rejected`, `test_issue_token_populates_slot`, `test_issued_token_validates`, `test_wrong_token_rejected`, `test_expired_token_rejected`, `test_expiry_across_millis_rollover`, `test_logout_invalidates_token`, `test_expired_slot_reclaimed_before_valid`, `test_oldest_valid_evicted_when_all_full`
-- Password: `test_generate_salt_length`, `test_hash_and_verify_correct_password`, `test_wrong_password_rejected`, `test_empty/below/at/above/max_len_*`
-- User store: `test_add_user_and_find`, `test_max_users_enforced`, `test_delete_user`, `test_slot0_delete_rejected`, `test_slot0_password_change_permitted`, `test_delete_non_slot0_preserves_slot0_protection`, `test_password_below_min_rejected_on_add`
-- Login fallback: `test_adapter_success_issues_token`, `test_adapter_rejection_no_nvs_fallthrough`, `test_adapter_error_falls_through_to_nvs_success/failure`, `test_no_adapter_configured_uses_nvs_directly`
-- Logging: `test_influx_log_event_fields`
-
-### `test/test_ota/` — OTA logic (17 tests)
-
-- Version parsing: valid, empty, null, malformed, zeros
-- Comparison: newer/older patch, equal, newer minor/major
-- Manifest: valid, missing url, missing version, md5 optional, no update needed (same/older), update available
-- Rollback: below/at/above threshold, zero failures
-- Partial download: incomplete, complete, not started, zero expected
 
 ## Alternative Firmware
 
@@ -762,6 +707,15 @@ Total: **136 tests** across 8 suites (verified via `pio test -e native`). Includ
 Full GPIO table and connector details: `docs/pinout.md`
 
 KiCad schematics: `docs/kicad/`
+
+### KiCad Footprint Decision
+
+**Use the WEMOS S3 / Lolin S3 footprint** — 2×20 through-hole, 2.54 mm pitch. The LB-ESP32S3-N16R8 is pin-for-pin compatible with this form factor (confirmed by `board = lolin_s3` in `platformio.ini` and verified against the board silkscreen). Source from SnapEDA or the WEMOS KiCad repo. Do not use the DOIT DevKit footprint (`esp32_devkit_v1_doit.kicad_mod`) — it is 2×15 pins and incompatible.
+
+Left header (20 pins): 3V3×2, RST, GPIO3–18 (sequential), GND
+Right header (20 pins + 2 GND): GND, GPIO43, GPIO44, GPIO1, GPIO2, GPIO42–39, GPIO38–35, GPIO0, GPIO45, GPIO48, GPIO47, GPIO21, GPIO20, GPIO19, GND×2
+
+**Note on GPIO35–38:** These appear as accessible header pins on the board silkscreen (labeled SPIIO6, SPIIO7/SPIID7, SPIDQS, FSPIWP) but may be internally connected to the OPI flash interface on the N16R8 module. Treat as reserved until verified with hardware.
 
 ## Credentials & Secrets
 
@@ -782,7 +736,7 @@ KiCad schematics: `docs/kicad/`
 #define AUTH_ADMIN_PASS  "..."   // min 8 chars; change immediately after first boot
 ```
 
-Both `AUTH_ADMIN_USER` and `AUTH_ADMIN_PASS` are enforced by `#error` guards at the top of `main.cpp` — omitting either causes a compile error. See also **Credentials & Secrets — Updated** section below for details.
+Both `AUTH_ADMIN_USER` and `AUTH_ADMIN_PASS` are enforced by `#error` guards at the top of `main.cpp` — omitting either causes a compile error.
 
 ## Lessons Learned
 

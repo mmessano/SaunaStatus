@@ -16,6 +16,8 @@
 #include <PubSubClient.h>
 #include <Update.h>
 #include <esp_ota_ops.h>
+#include <SPI.h>
+#include "gpio_config.h"
 #include "secrets.h"
 #ifndef AUTH_ADMIN_USER
 #error "AUTH_ADMIN_USER must be defined in secrets.h (e.g. #define AUTH_ADMIN_USER \"admin\")"
@@ -32,34 +34,31 @@
 #include "influx.h"
 
 // =============================================================================
-// PIN MAPPING
-// =============================================================================
-// Sensors / SPI
-//   GPIO  5  — MAX31865 CS    Stove PT1000 thermocouple (hardware SPI)
-//   GPIO 16  — DHT21 AM2301   Ceiling sensor             (DHTPIN_CEILING)
-//   GPIO 17  — DHT21 AM2301   Bench sensor               (DHTPIN_BENCH)
-//   GPIO 18  — VSPI SCK       reserved — do not use
-//   GPIO 19  — VSPI MISO      reserved — do not use
-//   GPIO 23  — VSPI MOSI      reserved — do not use
+// PIN MAPPING — LB-ESP32S3-N16R8-Pinout-Modified
+// All assignments are in gpio_config.h; grouped by physical adjacency.
 //
-// Power monitor / I2C (INA260)
-//   GPIO  4  — SDA            (INA260_SDA)
-//   GPIO 13  — SCL            (INA260_SCL)
+// Left header  (GPIO4–9, 15–18): motors + DHT sensors
+//   GPIO  4  — OUTFLOW_IN1    Outflow (upper) vent stepper IN1
+//   GPIO  5  — OUTFLOW_IN2    Outflow stepper IN2
+//   GPIO  6  — OUTFLOW_IN3    Outflow stepper IN3
+//   GPIO  7  — OUTFLOW_IN4    Outflow stepper IN4
+//   GPIO 15  — INFLOW_IN1     Inflow (lower) vent stepper IN1
+//   GPIO 16  — INFLOW_IN2     Inflow stepper IN2
+//   GPIO 17  — INFLOW_IN3     Inflow stepper IN3
+//   GPIO 18  — INFLOW_IN4     Inflow stepper IN4
+//   GPIO  8  — DHTPIN_CEILING DHT21 ceiling sensor data
+//   GPIO  9  — DHTPIN_BENCH   DHT21 bench sensor data
 //
-// Outflow stepper — upper vent (CheapStepper → ULN2003)
-//   GPIO 21  IN1  (dOUTFLOW1)
-//   GPIO 25  IN2  (dOUTFLOW2)
-//   GPIO 26  IN3  (dOUTFLOW3)
-//   GPIO 14  IN4  (dOUTFLOW4)
-//
-// Inflow stepper  — lower vent (CheapStepper → ULN2003)
-//   GPIO 22  IN1  (dINFLOW1)
-//   GPIO 27  IN2  (dINFLOW2)
-//   GPIO 32  IN3  (dINFLOW3)
-//   GPIO 33  IN4  (dINFLOW4)
+// Right header (GPIO1–2, 39–42): I2C + SPI
+//   GPIO  1  — INA260_SDA     I2C data  (INA260 power monitor)
+//   GPIO  2  — INA260_SCL     I2C clock (INA260 power monitor)
+//   GPIO 42  — SPI_CS_PIN     MAX31865 chip select
+//   GPIO 41  — SPI_SCK_PIN    SPI clock
+//   GPIO 40  — SPI_MISO_PIN   SPI MISO (MAX31865 SDO)
+//   GPIO 39  — SPI_MOSI_PIN   SPI MOSI (MAX31865 SDI)
 // =============================================================================
 
-#define DEVICE "ESP32"
+#define DEVICE "ESP32-S3"
 // Credentials (INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET,
 //              MQTT_BROKER, MQTT_PORT, MQTT_USER, MQTT_PASS,
 //              WIFI_SSID, WIFI_PASSWORD) are defined in secrets.h
@@ -81,12 +80,10 @@ char           g_db_key[64]  = "";
 // sensor-read block so savePrefs() never runs from inside a callback context.
 bool g_needs_save = false;
 
-// Add 3WIRE PT1000 sensor for the stove
-// use hardware SPI, just pass in the CS pin
-// The value of the Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
-// The 'nominal' 0-degrees-C resistance of the sensor
-// 100.0 for PT100, 1000.0 for PT1000
-Adafruit_MAX31865 stove_thermo = Adafruit_MAX31865(5);
+// PT1000 stove thermocouple via MAX31865 breakout.
+// ESP32-S3 has no fixed SPI defaults — SPI.begin(SCK,MISO,MOSI) is called in
+// setup() before stove_thermo.begin() to bind SPI to the gpio_config.h pins.
+Adafruit_MAX31865 stove_thermo = Adafruit_MAX31865(SPI_CS_PIN, &SPI);
 // #ifndef guards: authoritative values live in sensors.cpp; these are retained
 // for documentation only and must not conflict with the sensors.cpp definitions.
 #ifndef RREF
@@ -96,37 +93,19 @@ Adafruit_MAX31865 stove_thermo = Adafruit_MAX31865(5);
 #define RNOMINAL 1000.0
 #endif
 
-// INA260 power monitor — I2C on GPIO4 (SDA) / GPIO13 (SCL)
+// INA260 power monitor — I2C on INA260_SDA / INA260_SCL (from gpio_config.h)
 // Integrated 2 mΩ shunt; no external resistor required.
 // I2C address 0x40 (A0=GND, A1=GND).
-#define INA260_SDA 4
-#define INA260_SCL 13
 Adafruit_INA260 ina260;
 bool ina260_ok = false;
 
-// Add AM2301 sensors aka DHT21
-#define DHTPIN_CEILING 16
-#define DHTPIN_BENCH 17
-#define DHTTYPE DHT21
-
+// DHT21 sensors — pins from gpio_config.h (DHTPIN_CEILING, DHTPIN_BENCH, DHTTYPE)
 DHT dhtCeiling(DHTPIN_CEILING, DHTTYPE);
 DHT dhtBench(DHTPIN_BENCH, DHTTYPE);
 
-// Stepper motor pins (CheapStepper — IN1..IN4 per motor)
-// Outflow (Upper) vent
-const unsigned int dOUTFLOW1 = 21;
-const unsigned int dOUTFLOW2 = 25;
-const unsigned int dOUTFLOW3 = 26;
-const unsigned int dOUTFLOW4 = 14;
-
-// Inflow (Lower) vent
-const unsigned int dINFLOW1 = 22;
-const unsigned int dINFLOW2 = 27;
-const unsigned int dINFLOW3 = 32;
-const unsigned int dINFLOW4 = 33;
-
-CheapStepper outflow(dOUTFLOW1, dOUTFLOW2, dOUTFLOW3, dOUTFLOW4);
-CheapStepper inflow(dINFLOW1, dINFLOW2, dINFLOW3, dINFLOW4);
+// Stepper motors — pins from gpio_config.h (OUTFLOW_IN*, INFLOW_IN*)
+CheapStepper outflow(OUTFLOW_IN1, OUTFLOW_IN2, OUTFLOW_IN3, OUTFLOW_IN4);
+CheapStepper inflow(INFLOW_IN1,  INFLOW_IN2,  INFLOW_IN3,  INFLOW_IN4);
 
 // Steps for fully-open position (~90° quarter-turn damper on 28BYJ-48)
 #define VENT_STEPS 1024
@@ -510,7 +489,9 @@ void setup()
     Serial.println("INA260 not found — power monitoring disabled");
 
   // Thermocouple - PT1000
+  // On ESP32-S3, SPI pins must be configured explicitly before begin().
   Serial.println("Stove Thermocouple Sensor Test!");
+  SPI.begin(SPI_SCK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
   stove_thermo.begin(MAX31865_3WIRE);
 
   Serial.println(F("AM2301 Ceiling Test"));
