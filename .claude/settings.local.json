@@ -93,7 +93,16 @@
       "mcp__datasheets__read_text_file",
       "Bash(xargs cat:*)",
       "Bash(do echo:*)",
-      "Bash(head -50 test/test_motor_logic/*.cpp)"
+      "Bash(head -50 test/test_motor_logic/*.cpp)",
+      "Bash(bash ~/bin/sync-repos.sh --dry-run)",
+      "Bash(pcb --version)",
+      "Bash(pcb --help)",
+      "Bash(pcb import:*)",
+      "Bash(SCH=\"/home/mmessano/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_sch\")",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(SCH=docs/kicad/SaunaStatus.kicad_sch)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(/home/mmessano/Documents/repos/pcb/target/release/pcb import:*)"
     ]
   },
   "enabledMcpjsonServers": [
