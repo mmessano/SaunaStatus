@@ -5579,7 +5579,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 109.92 36.83 270)
+		(at 109.92 39.37 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -5587,23 +5587,23 @@
 		(dnp no)
 		(uuid "5315c87b-c8b8-4bdc-ab8e-1d55318e737d")
 		(property "Reference" "#PWR030"
-			(at 109.92 36.83 0)
+			(at 109.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Value" "+3V3"
-			(at 109.92 36.83 0)
+			(at 109.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Footprint" ""
-			(at 109.92 36.83 0)
+			(at 109.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Datasheet" ""
-			(at 109.92 36.83 0)
+			(at 109.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Description" ""
-			(at 109.92 36.83 0)
+			(at 109.92 39.37 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(pin "1"
@@ -5620,7 +5620,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 109.92 39.37 270)
+		(at 109.92 41.91 270)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -5628,23 +5628,23 @@
 		(dnp no)
 		(uuid "aec938f4-7261-451c-a6a9-ef6ec9db33ec")
 		(property "Reference" "#PWR031"
-			(at 109.92 39.37 0)
+			(at 109.92 41.91 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Value" "+3V3"
-			(at 109.92 39.37 0)
+			(at 109.92 41.91 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Footprint" ""
-			(at 109.92 39.37 0)
+			(at 109.92 41.91 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Datasheet" ""
-			(at 109.92 39.37 0)
+			(at 109.92 41.91 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Description" ""
-			(at 109.92 39.37 0)
+			(at 109.92 41.91 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(pin "1"
@@ -5661,7 +5661,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 109.92 90.17 90)
+		(at 109.92 87.63 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -5669,23 +5669,23 @@
 		(dnp no)
 		(uuid "459cff8e-64b4-4d87-9a4e-4c48c5eb623d")
 		(property "Reference" "#PWR032"
-			(at 109.92 90.17 0)
+			(at 109.92 87.63 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Value" "GND"
-			(at 109.92 90.17 0)
+			(at 109.92 87.63 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Footprint" ""
-			(at 109.92 90.17 0)
+			(at 109.92 87.63 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Datasheet" ""
-			(at 109.92 90.17 0)
+			(at 109.92 87.63 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Description" ""
-			(at 109.92 90.17 0)
+			(at 109.92 87.63 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(pin "1"
@@ -5702,7 +5702,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 179.92 41.91 90)
+		(at 179.92 39.37 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -5710,23 +5710,23 @@
 		(dnp no)
 		(uuid "8009a20a-197a-48d6-a279-8b732915e699")
 		(property "Reference" "#PWR033"
-			(at 179.92 41.91 0)
+			(at 179.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Value" "GND"
-			(at 179.92 41.91 0)
+			(at 179.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Footprint" ""
-			(at 179.92 41.91 0)
+			(at 179.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Datasheet" ""
-			(at 179.92 41.91 0)
+			(at 179.92 39.37 0)
 			(effects (font (size 1.27 1.27)) (hide yes))
 		)
 		(property "Description" ""
-			(at 179.92 41.91 0)
+			(at 179.92 39.37 0)
 			(effects (font (size 1.27 1.27)))
 		)
 		(pin "1"
