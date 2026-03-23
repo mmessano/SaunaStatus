@@ -1394,7 +1394,7 @@
 				(hide yes)
 			)
 		)
-		(symbol "Connector_Generic:Conn_01x20_1_1"
+		(symbol "Conn_01x20_1_1"
 			(rectangle
 				(start -1.27 24.13)
 				(end 1.27 -26.67)
