@@ -61,6 +61,7 @@ enum AuthUserResult {
     AUTH_USER_FULL      = 3,
     AUTH_USER_PROTECTED = 4,  // slot 0 delete attempt
     AUTH_USER_BAD_PASS  = 5,  // password too short
+    AUTH_USER_BAD_NAME  = 6,  // username invalid (length or charset)
 };
 
 enum AdapterResult {
@@ -186,6 +187,27 @@ inline void authPbkdf2Sha256(const uint8_t *password, size_t pass_len,
         for (int j = 0; j < 32; j++) result[j] ^= u[j];
     }
     memcpy(out_32, result, 32);
+}
+
+// ── Username validation ───────────────────────────────────────────────────
+#ifndef AUTH_MIN_USER_LEN
+#define AUTH_MIN_USER_LEN 1
+#endif
+#ifndef AUTH_MAX_USER_LEN
+#define AUTH_MAX_USER_LEN 32
+#endif
+
+// Allowed chars: alphanumeric, underscore, hyphen, period
+inline bool authUsernameValid(const char *name) {
+    if (!name || name[0] == '\0') return false;
+    size_t len = 0;
+    for (const char *p = name; *p; p++, len++) {
+        char c = *p;
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+        if (!ok) return false;
+    }
+    return len >= AUTH_MIN_USER_LEN && len <= AUTH_MAX_USER_LEN;
 }
 
 // ── Password helpers ──────────────────────────────────────────────────────
@@ -360,6 +382,7 @@ inline AuthUserResult authAddUser(AuthUserStore *store,
                                    const char *role,
                                    AuthRandFn rand_fn,
                                    AuthHashFn hash_fn) {
+    if (!authUsernameValid(username))    return AUTH_USER_BAD_NAME;
     if (!authPasswordLengthOk(password)) return AUTH_USER_BAD_PASS;
     if (store->count >= AUTH_MAX_USERS)  return AUTH_USER_FULL;
     if (authFindUser(store, username))   return AUTH_USER_EXISTS;

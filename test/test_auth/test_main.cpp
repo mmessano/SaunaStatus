@@ -460,6 +460,52 @@ void test_verify_password_empty_stored_hash_rejected(void) {
     TEST_ASSERT_FALSE(authVerifyPassword("password1", salt, empty_hash, testHashFn));
 }
 
+// ── Username validation tests ───────────────────────────────────────────────
+
+void test_username_valid_alphanumeric(void) {
+    TEST_ASSERT_TRUE(authUsernameValid("alice"));
+    TEST_ASSERT_TRUE(authUsernameValid("Bob123"));
+    TEST_ASSERT_TRUE(authUsernameValid("user_name"));
+    TEST_ASSERT_TRUE(authUsernameValid("user-name"));
+    TEST_ASSERT_TRUE(authUsernameValid("user.name"));
+}
+
+void test_username_empty_rejected(void) {
+    TEST_ASSERT_FALSE(authUsernameValid(""));
+    TEST_ASSERT_FALSE(authUsernameValid(nullptr));
+}
+
+void test_username_special_chars_rejected(void) {
+    TEST_ASSERT_FALSE(authUsernameValid("user name"));   // space
+    TEST_ASSERT_FALSE(authUsernameValid("user@name"));   // @
+    TEST_ASSERT_FALSE(authUsernameValid("<script>"));     // XSS
+    TEST_ASSERT_FALSE(authUsernameValid("user/name"));   // slash
+    TEST_ASSERT_FALSE(authUsernameValid("user\"name"));  // quote
+}
+
+void test_username_max_length(void) {
+    char name33[34];
+    memset(name33, 'a', 33);
+    name33[33] = '\0';
+    TEST_ASSERT_FALSE(authUsernameValid(name33));  // 33 chars > AUTH_MAX_USER_LEN(32)
+
+    char name32[33];
+    memset(name32, 'a', 32);
+    name32[32] = '\0';
+    TEST_ASSERT_TRUE(authUsernameValid(name32));   // 32 chars == AUTH_MAX_USER_LEN
+}
+
+void test_add_user_bad_username_rejected(void) {
+    AuthUserStore store;
+    memset(&store, 0, sizeof(store));
+    g_randCounter = 0;
+    TEST_ASSERT_EQUAL(AUTH_USER_BAD_NAME,
+        authAddUser(&store, "bad user", "password123", "viewer", testRandFn, testHashFn));
+    TEST_ASSERT_EQUAL(AUTH_USER_BAD_NAME,
+        authAddUser(&store, "", "password123", "viewer", testRandFn, testHashFn));
+    TEST_ASSERT_EQUAL(0, store.count);
+}
+
 // ── Adapter URL validation tests ────────────────────────────────────────────
 
 void test_adapter_url_empty_is_valid(void) {
@@ -751,6 +797,12 @@ int main(int argc, char **argv) {
     RUN_TEST(test_add_user_with_empty_role_stores_empty_role);
     RUN_TEST(test_verify_password_short_stored_hash_rejected);
     RUN_TEST(test_verify_password_empty_stored_hash_rejected);
+    // Username validation
+    RUN_TEST(test_username_valid_alphanumeric);
+    RUN_TEST(test_username_empty_rejected);
+    RUN_TEST(test_username_special_chars_rejected);
+    RUN_TEST(test_username_max_length);
+    RUN_TEST(test_add_user_bad_username_rejected);
     // Adapter URL validation
     RUN_TEST(test_adapter_url_empty_is_valid);
     RUN_TEST(test_adapter_url_https_is_valid);

@@ -313,7 +313,7 @@ void handleLog()
   {
     Serial.print("InfluxDB manual write failed: ");
     Serial.println(influxClient.getLastErrorMessage());
-    server.send(500, "text/plain", influxClient.getLastErrorMessage());
+    server.send(500, "application/json", "{\"error\":\"database write failed\"}");
   }
 }
 
@@ -890,10 +890,13 @@ void handleUsersCreate() {
     }
     AuthUserResult r = authAddUser(&g_auth_users, username, password, role,
                                     espRandFn, mbedHashFn);
+    if (r == AUTH_USER_BAD_NAME) { server.send(400, "application/json", "{\"error\":\"invalid username\"}"); return; }
     if (r == AUTH_USER_BAD_PASS) { server.send(400, "application/json", "{\"error\":\"password too short\"}"); return; }
     if (r == AUTH_USER_FULL)     { server.send(409, "application/json", "{\"error\":\"user limit reached\"}"); return; }
     if (r == AUTH_USER_EXISTS)   { server.send(409, "application/json", "{\"error\":\"username taken\"}"); return; }
     authNvsSave(&g_auth_users);
+    logAccessEvent("user_create", username, "admin_action",
+                   server.client().remoteIP().toString().c_str());
     server.send(200, "application/json", "{\"ok\":true}");
 }
 
@@ -905,6 +908,8 @@ void handleUsersDelete() {
     if (r == AUTH_USER_PROTECTED)  { server.send(403, "application/json", "{\"error\":\"cannot delete emergency admin\"}"); return; }
     if (r == AUTH_USER_NOT_FOUND)  { server.send(404, "application/json", "{\"error\":\"user not found\"}"); return; }
     authNvsSave(&g_auth_users);
+    logAccessEvent("user_delete", username.c_str(), "admin_action",
+                   server.client().remoteIP().toString().c_str());
     server.send(200, "application/json", "{\"ok\":true}");
 }
 
@@ -924,6 +929,8 @@ void handleUsersChangePassword() {
     if (r == AUTH_USER_BAD_PASS)   { server.send(400, "application/json", "{\"error\":\"password too short\"}"); return; }
     if (r == AUTH_USER_NOT_FOUND)  { server.send(404, "application/json", "{\"error\":\"user not found\"}"); return; }
     authNvsSave(&g_auth_users);
+    logAccessEvent("password_change", username.c_str(), "admin_action",
+                   server.client().remoteIP().toString().c_str());
     server.send(200, "application/json", "{\"ok\":true}");
 }
 
