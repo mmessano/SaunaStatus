@@ -129,6 +129,7 @@ inline AdapterResult authCallAdapter(const char *username,
                                       const char *db_key,
                                       char *out_role) {
     if (!db_url || db_url[0] == '\0') return ADAPTER_ERROR;
+    if (!authAdapterUrlValid(db_url)) return ADAPTER_ERROR;  // reject non-HTTPS
     HTTPClient http;
     char url[160];
     snprintf(url, sizeof(url), "%s/validate", db_url);

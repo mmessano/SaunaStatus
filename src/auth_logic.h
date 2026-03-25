@@ -330,6 +330,14 @@ inline LoginOutcome authAttemptLogin(const char *username,
     return out;
 }
 
+// ── Adapter URL validation ───────────────────────────────────────────────
+// Adapter URLs must use HTTPS to prevent plaintext credential transmission.
+// Empty URL is allowed (means adapter is disabled).
+inline bool authAdapterUrlValid(const char *url) {
+    if (!url || url[0] == '\0') return true;  // empty = disabled = OK
+    return strncmp(url, "https://", 8) == 0;
+}
+
 // ── Login rate limiter (portable, testable) ─────────────────────────────
 #ifndef AUTH_RATE_LIMIT_MAX_FAILURES
 #define AUTH_RATE_LIMIT_MAX_FAILURES 5

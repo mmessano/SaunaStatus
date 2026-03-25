@@ -457,6 +457,29 @@ void test_verify_password_empty_stored_hash_rejected(void) {
     TEST_ASSERT_FALSE(authVerifyPassword("password1", salt, empty_hash, testHashFn));
 }
 
+// ── Adapter URL validation tests ────────────────────────────────────────────
+
+void test_adapter_url_empty_is_valid(void) {
+    TEST_ASSERT_TRUE(authAdapterUrlValid(""));
+    TEST_ASSERT_TRUE(authAdapterUrlValid(nullptr));
+}
+
+void test_adapter_url_https_is_valid(void) {
+    TEST_ASSERT_TRUE(authAdapterUrlValid("https://auth.example.com/api"));
+}
+
+void test_adapter_url_http_rejected(void) {
+    TEST_ASSERT_FALSE(authAdapterUrlValid("http://auth.example.com/api"));
+}
+
+void test_adapter_url_no_scheme_rejected(void) {
+    TEST_ASSERT_FALSE(authAdapterUrlValid("auth.example.com/api"));
+}
+
+void test_adapter_url_ftp_rejected(void) {
+    TEST_ASSERT_FALSE(authAdapterUrlValid("ftp://auth.example.com/api"));
+}
+
 // ── Rate limiter tests ──────────────────────────────────────────────────────
 
 static RateLimiter g_rl;
@@ -606,6 +629,12 @@ int main(int argc, char **argv) {
     RUN_TEST(test_add_user_with_empty_role_stores_empty_role);
     RUN_TEST(test_verify_password_short_stored_hash_rejected);
     RUN_TEST(test_verify_password_empty_stored_hash_rejected);
+    // Adapter URL validation
+    RUN_TEST(test_adapter_url_empty_is_valid);
+    RUN_TEST(test_adapter_url_https_is_valid);
+    RUN_TEST(test_adapter_url_http_rejected);
+    RUN_TEST(test_adapter_url_no_scheme_rejected);
+    RUN_TEST(test_adapter_url_ftp_rejected);
     // Rate limiter tests
     RUN_TEST(test_rate_limit_not_locked_initially);
     RUN_TEST(test_rate_limit_not_locked_after_few_failures);
