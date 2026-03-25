@@ -168,6 +168,12 @@ inline AdapterResult adapterShim(const char *username, const char *password,
 inline void authAddSecurityHeaders() {
     server.sendHeader("X-Frame-Options",        "DENY");
     server.sendHeader("X-Content-Type-Options", "nosniff");
+    server.sendHeader("Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self' ws:");
 }
 
 // Returns the validated session pointer, or nullptr (and sends 401) on failure

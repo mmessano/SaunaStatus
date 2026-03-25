@@ -81,6 +81,7 @@ static void handleDeleteMeasurement(const char *measurement)
 
 void handleRoot()
 {
+  authAddSecurityHeaders();
   File f = LittleFS.open("/index.html", "r");
   if (!f)
   {
@@ -576,6 +577,7 @@ void handleOtaUpdate()
 // GET /config — serve the settings HTML page from LittleFS
 void handleConfigPage()
 {
+  authAddSecurityHeaders();
   File f = LittleFS.open("/config.html", "r");
   if (!f)
   {
