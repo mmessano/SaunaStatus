@@ -543,6 +543,10 @@ Address and port are defined in `secrets.h` as `MQTT_BROKER` and `MQTT_PORT` (de
 
 If `MQTT_USER` in `secrets.h` is a non-empty string, connects with username and password (`MQTT_USER`/`MQTT_PASS`). If empty, connects without credentials.
 
+#### Security: Broker ACL Requirement
+
+**The MQTT broker must enforce ACLs for the `sauna/#` topic tree.** The firmware authenticates to the broker with `MQTT_USER`/`MQTT_PASS`, but control topics (`sauna/ceiling_setpoint/set`, `sauna/bench_setpoint/set`, `sauna/ceiling_pid/set`, `sauna/bench_pid/set`) accept commands from any publisher without per-message authentication. Any client with broker access can modify PID setpoints that directly control physical hardware. Configure broker ACLs to restrict publish access on `sauna/+/set` topics to trusted clients only.
+
 #### Reconnect Behavior
 
 If disconnected, the firmware retries every 5,000 ms. On reconnect, HA Discovery payloads are re-published and all subscriptions are re-established.
