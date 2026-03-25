@@ -56,6 +56,8 @@ inline void buildJson(char *buf, size_t len) {
 // ─── Arduino-only handlers ─────────────────────────────────────────────────────
 #ifdef ARDUINO
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length);
+void wsBroadcastAuthenticated(const char *payload);
+void wsCheckAuthTimeouts();
 void handleRoot();
 void handleLog();
 void handleDeleteStatus();

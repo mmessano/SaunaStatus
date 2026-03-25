@@ -638,6 +638,7 @@ void loop()
 
   server.handleClient();
   webSocket.loop();
+  wsCheckAuthTimeouts();
 
   if (!mqttClient.connected())
   {
@@ -851,10 +852,10 @@ void loop()
       }
     }
 
-    // Broadcast updated readings to all connected WebSocket clients
+    // Broadcast updated readings to authenticated WebSocket clients only
     char json[WS_JSON_BUF_SIZE];
     buildJson(json, sizeof(json));
-    webSocket.broadcastTXT(json);
+    wsBroadcastAuthenticated(json);
 
     // Publish to MQTT
     if (mqttClient.connected())

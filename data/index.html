@@ -308,14 +308,31 @@
     });
 
     var ws;
+    var wsAuthed = false;
     function connect() {
+      wsAuthed = false;
       ws = new WebSocket('ws://' + location.hostname + ':81/');
       ws.onopen = function() {
-        document.getElementById('dot').className = 'dot on';
-        document.getElementById('connStatus').innerText = 'Connected';
+        // Send auth token as first message
+        var token = localStorage.getItem('token');
+        if (token) {
+          ws.send(JSON.stringify({token: token}));
+        }
       };
       ws.onmessage = function(e) {
         var d = JSON.parse(e.data);
+        // Handle auth challenge/errors from server
+        if ('auth_required' in d) return; // waiting for our token send
+        if ('error' in d) {
+          console.warn('WebSocket auth error:', d.error);
+          return;
+        }
+        // Auth succeeded once we get sensor data
+        if (!wsAuthed) {
+          wsAuthed = true;
+          document.getElementById('dot').className = 'dot on';
+          document.getElementById('connStatus').innerText = 'Connected';
+        }
         function set(id, v) {
           var el = document.getElementById(id);
           el.innerText = v !== null ? v : 'ERR';
