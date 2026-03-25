@@ -521,8 +521,8 @@ void setup()
   Serial.println("WiFi connected.");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  // WiFi up — firmware is functional enough to cancel any pending rollback
-  otaMarkBootSuccessful();
+  // NOTE: otaMarkBootSuccessful() moved to after full subsystem init
+  // (server, WebSocket, MQTT, auth) — see end of setup()
 
   // NTP server pairs tried in order. Router-first is most reliable on a LAN
   // since it doesn't require outbound UDP 123 to the internet.
@@ -625,6 +625,11 @@ void setup()
   mqttClient.setCallback(mqttCallback);
   mqttClient.setBufferSize(MQTT_BUF_SIZE);
   mqttConnect();
+
+  // All subsystems initialized — mark boot successful to cancel OTA rollback.
+  // Placed here (not after WiFi connect) so a firmware with broken HTTP,
+  // auth, or MQTT handlers triggers rollback instead of being marked valid.
+  otaMarkBootSuccessful();
 }
 
 void loop()
