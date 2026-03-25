@@ -590,13 +590,14 @@
     function addUser() {
       var u = document.getElementById('newUser').value.trim();
       var p = document.getElementById('newPass').value;
+      var r = document.getElementById('newRole').value;
       var st = document.getElementById('userStatus');
       st.innerText = '';
       if (!u || p.length < 8) { st.style.color='#fc8181'; st.innerText='Username required; password \u22658 chars.'; return; }
       authFetch('/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p, role: 'admin' })
+        body: JSON.stringify({ username: u, password: p, role: r })
       }).then(function(r){ return r.json(); }).then(function(d) {
         if (d.ok) { st.style.color='#48bb78'; st.innerText='User created.'; loadUsers(); }
         else { st.style.color='#fc8181'; st.innerText='Error: ' + (d.error || 'unknown'); }
@@ -616,8 +617,12 @@
       <details>
         <summary style="cursor:pointer;color:#a0aec0;font-size:0.85em;">Add user</summary>
         <div style="margin-top:10px;">
-          <input id="newUser" placeholder="Username" style="width:45%;margin-right:4px;">
-          <input id="newPass" type="password" placeholder="Password (&#x2265;8 chars)" style="width:45%;">
+          <input id="newUser" placeholder="Username" style="width:35%;margin-right:4px;">
+          <input id="newPass" type="password" placeholder="Password (&#x2265;8 chars)" style="width:35%;margin-right:4px;">
+          <select id="newRole" style="width:20%;background:#16213e;color:#eee;border:1px solid #4a5568;border-radius:4px;padding:4px;">
+            <option value="viewer">viewer</option>
+            <option value="admin">admin</option>
+          </select>
           <button class="btn" style="margin-top:8px;" onclick="addUser()">Create</button>
           <div id="userStatus" style="margin-top:8px;font-size:0.85em;color:#718096;min-height:1.2em;"></div>
         </div>

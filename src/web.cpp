@@ -882,6 +882,10 @@ void handleUsersCreate() {
     const char *username = doc["username"] | "";
     const char *password = doc["password"] | "";
     const char *role     = doc["role"]     | "";  // no implicit privilege escalation
+    // Validate role against allowed values
+    if (strcmp(role, "admin") != 0 && strcmp(role, "viewer") != 0 && strcmp(role, "") != 0) {
+        server.send(400, "application/json", "{\"error\":\"invalid role\"}"); return;
+    }
     AuthUserResult r = authAddUser(&g_auth_users, username, password, role,
                                     espRandFn, mbedHashFn);
     if (r == AUTH_USER_BAD_PASS) { server.send(400, "application/json", "{\"error\":\"password too short\"}"); return; }
