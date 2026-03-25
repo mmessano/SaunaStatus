@@ -457,6 +457,104 @@ void test_verify_password_empty_stored_hash_rejected(void) {
     TEST_ASSERT_FALSE(authVerifyPassword("password1", salt, empty_hash, testHashFn));
 }
 
+// ── Rate limiter tests ──────────────────────────────────────────────────────
+
+static RateLimiter g_rl;
+static void clearRateLimiter(void) { memset(&g_rl, 0, sizeof(g_rl)); }
+
+void test_rate_limit_not_locked_initially(void) {
+    clearRateLimiter();
+    TEST_ASSERT_FALSE(rateLimitIsLocked(&g_rl, 0x12345678, 1000));
+}
+
+void test_rate_limit_not_locked_after_few_failures(void) {
+    clearRateLimiter();
+    uint32_t ip = authIpHash(0xC0A80101);  // 192.168.1.1
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES - 1; i++) {
+        TEST_ASSERT_FALSE(rateLimitRecordFailure(&g_rl, ip, 1000 + i * 100));
+    }
+    TEST_ASSERT_FALSE(rateLimitIsLocked(&g_rl, ip, 1500));
+}
+
+void test_rate_limit_locked_after_max_failures(void) {
+    clearRateLimiter();
+    uint32_t ip = authIpHash(0xC0A80101);
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES - 1; i++) {
+        rateLimitRecordFailure(&g_rl, ip, 1000 + i * 100);
+    }
+    // The Nth failure should trigger lockout
+    TEST_ASSERT_TRUE(rateLimitRecordFailure(&g_rl, ip, 1500));
+    TEST_ASSERT_TRUE(rateLimitIsLocked(&g_rl, ip, 2000));
+}
+
+void test_rate_limit_lockout_expires(void) {
+    clearRateLimiter();
+    uint32_t ip = authIpHash(0xC0A80101);
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES; i++) {
+        rateLimitRecordFailure(&g_rl, ip, 1000 + i * 100);
+    }
+    TEST_ASSERT_TRUE(rateLimitIsLocked(&g_rl, ip, 2000));
+    // After lockout period expires
+    TEST_ASSERT_FALSE(rateLimitIsLocked(&g_rl, ip, 1000 + AUTH_RATE_LIMIT_LOCKOUT_MS + 1000));
+}
+
+void test_rate_limit_different_ips_independent(void) {
+    clearRateLimiter();
+    uint32_t ip1 = authIpHash(0xC0A80101);
+    uint32_t ip2 = authIpHash(0xC0A80102);
+    // Lock out IP1
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES; i++) {
+        rateLimitRecordFailure(&g_rl, ip1, 1000 + i * 100);
+    }
+    TEST_ASSERT_TRUE(rateLimitIsLocked(&g_rl, ip1, 2000));
+    // IP2 should not be locked
+    TEST_ASSERT_FALSE(rateLimitIsLocked(&g_rl, ip2, 2000));
+}
+
+void test_rate_limit_clear_on_success(void) {
+    clearRateLimiter();
+    uint32_t ip = authIpHash(0xC0A80101);
+    // Record some failures (but not enough to lock out)
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES - 1; i++) {
+        rateLimitRecordFailure(&g_rl, ip, 1000 + i * 100);
+    }
+    // Successful login clears failures
+    rateLimitClear(&g_rl, ip);
+    // Should now take full MAX_FAILURES again to lock out
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES - 1; i++) {
+        TEST_ASSERT_FALSE(rateLimitRecordFailure(&g_rl, ip, 5000 + i * 100));
+    }
+    TEST_ASSERT_TRUE(rateLimitRecordFailure(&g_rl, ip, 5500));
+}
+
+void test_rate_limit_old_failures_expire_from_window(void) {
+    clearRateLimiter();
+    uint32_t ip = authIpHash(0xC0A80101);
+    // Record 4 failures at time 1000
+    for (int i = 0; i < AUTH_RATE_LIMIT_MAX_FAILURES - 1; i++) {
+        rateLimitRecordFailure(&g_rl, ip, 1000);
+    }
+    // Time advances past the window
+    uint32_t afterWindow = 1000 + AUTH_RATE_LIMIT_WINDOW_MS + 1;
+    // One more failure should NOT trigger lockout (old failures expired)
+    TEST_ASSERT_FALSE(rateLimitRecordFailure(&g_rl, ip, afterWindow));
+}
+
+void test_rate_limit_slot_eviction(void) {
+    clearRateLimiter();
+    // Fill all slots
+    for (int i = 0; i < AUTH_RATE_LIMIT_SLOTS; i++) {
+        uint32_t ip = authIpHash(0xC0A80100 + i);
+        rateLimitRecordFailure(&g_rl, ip, 1000 + i * 1000);
+    }
+    // Adding one more should evict oldest and still work
+    uint32_t newIp = authIpHash(0xC0A80200);
+    TEST_ASSERT_FALSE(rateLimitRecordFailure(&g_rl, newIp, 50000));
+    // New IP should be tracked
+    rateLimitRecordFailure(&g_rl, newIp, 50001);
+    // Should not crash or lose state
+}
+
 void test_influx_log_event_fields(void) {
     AuthLogEvent ev = authBuildLogEvent("login_success", "alice",
                                          "192.168.1.50", "nvs");
@@ -508,5 +606,14 @@ int main(int argc, char **argv) {
     RUN_TEST(test_add_user_with_empty_role_stores_empty_role);
     RUN_TEST(test_verify_password_short_stored_hash_rejected);
     RUN_TEST(test_verify_password_empty_stored_hash_rejected);
+    // Rate limiter tests
+    RUN_TEST(test_rate_limit_not_locked_initially);
+    RUN_TEST(test_rate_limit_not_locked_after_few_failures);
+    RUN_TEST(test_rate_limit_locked_after_max_failures);
+    RUN_TEST(test_rate_limit_lockout_expires);
+    RUN_TEST(test_rate_limit_different_ips_independent);
+    RUN_TEST(test_rate_limit_clear_on_success);
+    RUN_TEST(test_rate_limit_old_failures_expire_from_window);
+    RUN_TEST(test_rate_limit_slot_eviction);
     return UNITY_END();
 }

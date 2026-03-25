@@ -330,6 +330,130 @@ inline LoginOutcome authAttemptLogin(const char *username,
     return out;
 }
 
+// ── Login rate limiter (portable, testable) ─────────────────────────────
+#ifndef AUTH_RATE_LIMIT_MAX_FAILURES
+#define AUTH_RATE_LIMIT_MAX_FAILURES 5
+#endif
+#ifndef AUTH_RATE_LIMIT_WINDOW_MS
+#define AUTH_RATE_LIMIT_WINDOW_MS 60000UL
+#endif
+#ifndef AUTH_RATE_LIMIT_LOCKOUT_MS
+#define AUTH_RATE_LIMIT_LOCKOUT_MS 300000UL
+#endif
+#ifndef AUTH_RATE_LIMIT_SLOTS
+#define AUTH_RATE_LIMIT_SLOTS 8
+#endif
+
+struct RateLimitEntry {
+    uint32_t ip_hash;
+    uint32_t failure_times[AUTH_RATE_LIMIT_MAX_FAILURES];
+    uint8_t  count;         // number of failures recorded in window
+    uint32_t lockout_until; // millis() when lockout expires (0 = not locked)
+    bool     active;
+};
+
+struct RateLimiter {
+    RateLimitEntry entries[AUTH_RATE_LIMIT_SLOTS];
+};
+
+// Simple IP hash from 4 octets packed as uint32_t
+inline uint32_t authIpHash(uint32_t ip) {
+    // Mix bits to distribute across slots
+    ip ^= ip >> 16;
+    ip *= 0x45d9f3b;
+    ip ^= ip >> 16;
+    return ip;
+}
+
+inline RateLimitEntry *rateLimitFind(RateLimiter *rl, uint32_t ip_hash) {
+    for (int i = 0; i < AUTH_RATE_LIMIT_SLOTS; i++) {
+        if (rl->entries[i].active && rl->entries[i].ip_hash == ip_hash)
+            return &rl->entries[i];
+    }
+    return nullptr;
+}
+
+inline RateLimitEntry *rateLimitAlloc(RateLimiter *rl, uint32_t ip_hash, uint32_t now_ms) {
+    // Find inactive slot
+    for (int i = 0; i < AUTH_RATE_LIMIT_SLOTS; i++) {
+        if (!rl->entries[i].active) {
+            memset(&rl->entries[i], 0, sizeof(RateLimitEntry));
+            rl->entries[i].ip_hash = ip_hash;
+            rl->entries[i].active  = true;
+            return &rl->entries[i];
+        }
+    }
+    // Evict oldest (earliest first failure)
+    int oldest = 0;
+    uint32_t oldestAge = 0;
+    for (int i = 0; i < AUTH_RATE_LIMIT_SLOTS; i++) {
+        uint32_t ft = rl->entries[i].count > 0 ? rl->entries[i].failure_times[0] : 0;
+        uint32_t age = now_ms - ft;
+        if (age > oldestAge) { oldestAge = age; oldest = i; }
+    }
+    memset(&rl->entries[oldest], 0, sizeof(RateLimitEntry));
+    rl->entries[oldest].ip_hash = ip_hash;
+    rl->entries[oldest].active  = true;
+    return &rl->entries[oldest];
+}
+
+// Returns true if the IP is currently locked out
+inline bool rateLimitIsLocked(RateLimiter *rl, uint32_t ip_hash, uint32_t now_ms) {
+    RateLimitEntry *e = rateLimitFind(rl, ip_hash);
+    if (!e) return false;
+    if (e->lockout_until != 0 && (now_ms - e->lockout_until) > AUTH_RATE_LIMIT_LOCKOUT_MS) {
+        // Lockout has expired — but we use subtraction, so check differently:
+        // lockout_until is the timestamp when lockout started.
+        // Actually, store lockout_until as the time AT which lockout expires.
+    }
+    // Check if locked out
+    if (e->lockout_until != 0) {
+        // lockout_until stores the millis() at which lockout expires
+        if ((int32_t)(now_ms - e->lockout_until) < 0) {
+            return true;  // still locked
+        }
+        // Lockout expired — reset entry
+        memset(e, 0, sizeof(RateLimitEntry));
+        return false;
+    }
+    return false;
+}
+
+// Record a failed login attempt. Returns true if IP is now locked out.
+inline bool rateLimitRecordFailure(RateLimiter *rl, uint32_t ip_hash, uint32_t now_ms) {
+    RateLimitEntry *e = rateLimitFind(rl, ip_hash);
+    if (!e) e = rateLimitAlloc(rl, ip_hash, now_ms);
+
+    // Expire old failures outside the window
+    uint8_t valid = 0;
+    for (uint8_t i = 0; i < e->count; i++) {
+        if ((now_ms - e->failure_times[i]) <= AUTH_RATE_LIMIT_WINDOW_MS) {
+            e->failure_times[valid++] = e->failure_times[i];
+        }
+    }
+    e->count = valid;
+
+    // Add new failure
+    if (e->count < AUTH_RATE_LIMIT_MAX_FAILURES) {
+        e->failure_times[e->count++] = now_ms;
+    }
+
+    // Check if threshold reached
+    if (e->count >= AUTH_RATE_LIMIT_MAX_FAILURES) {
+        e->lockout_until = now_ms + AUTH_RATE_LIMIT_LOCKOUT_MS;
+        return true;
+    }
+    return false;
+}
+
+// Clear rate limit entry on successful login
+inline void rateLimitClear(RateLimiter *rl, uint32_t ip_hash) {
+    RateLimitEntry *e = rateLimitFind(rl, ip_hash);
+    if (e) {
+        memset(e, 0, sizeof(RateLimitEntry));
+    }
+}
+
 // ── Log event struct (populated portably, written to InfluxDB by auth.h) ──
 struct AuthLogEvent {
     char event[32];

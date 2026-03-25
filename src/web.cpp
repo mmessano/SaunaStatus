@@ -730,6 +730,15 @@ void handleAuthLoginPage() {
 void handleAuthLogin() {
     authAddSecurityHeaders();
     server.sendHeader("Cache-Control", "no-store");
+
+    // Rate limiting check
+    uint32_t clientIp = (uint32_t)server.client().remoteIP();
+    uint32_t ipHash = authIpHash(clientIp);
+    if (rateLimitIsLocked(&g_rate_limiter, ipHash, millis())) {
+        server.send(429, "application/json", "{\"error\":\"too many attempts, try again later\"}");
+        return;
+    }
+
     if (!server.hasArg("plain")) { server.send(400, "application/json", "{\"error\":\"no body\"}"); return; }
     JsonDocument doc;
     if (deserializeJson(doc, server.arg("plain")) != DeserializationError::Ok) {
@@ -746,11 +755,18 @@ void handleAuthLogin() {
                                         &g_auth_users, mbedHashFn);
     const char *srcStr = (out.source == AUTH_SRC_ADAPTER) ? "adapter" : "nvs";
     if (out.result != LOGIN_OK) {
+        bool locked = rateLimitRecordFailure(&g_rate_limiter, ipHash, millis());
         logAccessEvent("login_failure", username, srcStr,
                        server.client().remoteIP().toString().c_str());
-        server.send(401, "application/json", "{\"error\":\"invalid credentials\"}");
+        if (locked) {
+            server.send(429, "application/json", "{\"error\":\"too many attempts, try again later\"}");
+        } else {
+            server.send(401, "application/json", "{\"error\":\"invalid credentials\"}");
+        }
         return;
     }
+    // Successful login — clear rate limit for this IP
+    rateLimitClear(&g_rate_limiter, ipHash);
     char token[65];
     authIssueToken(g_auth_sessions, AUTH_MAX_SESSIONS,
                    username, out.role, millis(), espRandFn, token);

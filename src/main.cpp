@@ -74,6 +74,7 @@ Point control("sauna_control");
 Point          webaccess("sauna_webaccess");
 AuthSession    g_auth_sessions[AUTH_MAX_SESSIONS];
 AuthUserStore  g_auth_users;
+RateLimiter    g_rate_limiter = {};
 char           g_db_url[128] = "";
 char           g_db_key[64]  = "";
 // Deferred NVS save flag. Set by mqttCallback(); flushed in loop() before the

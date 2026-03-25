@@ -52,6 +52,7 @@ extern char g_static_ip_str[];
 // Auth
 extern AuthSession   g_auth_sessions[];
 extern AuthUserStore g_auth_users;
+extern RateLimiter   g_rate_limiter;
 
 // Functions defined in main.cpp, called by modules
 extern void savePrefs();
