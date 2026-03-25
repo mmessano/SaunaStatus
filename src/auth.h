@@ -49,7 +49,7 @@ inline void authNvsLoad(AuthUserStore *store) {
     prefs.begin("sauna_auth", true);  // read-only
     store->count = 0;
     for (int i = 0; i < AUTH_MAX_USERS; i++) {
-        char keyName[12], keyHash[12], keySalt[12], keyRole[12];
+        char keyName[12], keyHash[12], keySalt[12], keyRole[12], keyIter[12];
         snprintf(keyName, sizeof(keyName), "u%d_name", i);
         if (!prefs.isKey(keyName)) break;
         AuthUser &u = store->users[i];
@@ -61,6 +61,8 @@ inline void authNvsLoad(AuthUserStore *store) {
         prefs.getString(keySalt,                    u.salt, 33);
         snprintf(keyRole, sizeof(keyRole), "u%d_role", i);
         prefs.getString(keyRole,                    u.role, 17);
+        snprintf(keyIter, sizeof(keyIter), "u%d_iter", i);
+        u.iterations = prefs.isKey(keyIter) ? (uint16_t)prefs.getUShort(keyIter, 0) : 0;
         u.active = true;
         store->count++;
     }
@@ -71,15 +73,17 @@ inline void authNvsSave(const AuthUserStore *store) {
     Preferences prefs;
     prefs.begin("sauna_auth", false);
     for (int i = 0; i < store->count; i++) {
-        char keyName[12], keyHash[12], keySalt[12], keyRole[12];
+        char keyName[12], keyHash[12], keySalt[12], keyRole[12], keyIter[12];
         snprintf(keyName, sizeof(keyName), "u%d_name", i);
         snprintf(keyHash, sizeof(keyHash), "u%d_hash", i);
         snprintf(keySalt, sizeof(keySalt), "u%d_salt", i);
         snprintf(keyRole, sizeof(keyRole), "u%d_role", i);
+        snprintf(keyIter, sizeof(keyIter), "u%d_iter", i);
         prefs.putString(keyName, store->users[i].name);
         prefs.putString(keyHash, store->users[i].hash);
         prefs.putString(keySalt, store->users[i].salt);
         prefs.putString(keyRole, store->users[i].role);
+        prefs.putUShort(keyIter, store->users[i].iterations);
     }
     // Clear name keys beyond current count — authNvsLoad breaks on first missing u{i}_name,
     // so orphaned hash/salt/role keys for removed slots are never read.

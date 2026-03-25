@@ -189,11 +189,14 @@ void test_oldest_valid_evicted_when_all_full(void) {
     TEST_ASSERT_EQUAL_STRING("latecomer", g_sessions[0].username);
 }
 
-// Test hash: XOR-fold all bytes into each output byte — deterministic, not secure
+// Test hash: position-sensitive multiplicative fold — deterministic, not secure.
+// Unlike a simple XOR-fold, this preserves enough entropy for HMAC/PBKDF2 to
+// differentiate inputs (XOR-fold of even-count repeated bytes collapses to 0).
 static void testHashFn(const uint8_t *data, size_t len, uint8_t *out32) {
-    uint8_t acc = 0;
-    for (size_t i = 0; i < len; i++) acc ^= data[i];
-    memset(out32, acc, 32);
+    memset(out32, 0, 32);
+    for (size_t i = 0; i < len; i++) {
+        out32[i % 32] = (uint8_t)((out32[i % 32] * 31 + data[i] + 1) & 0xFF);
+    }
 }
 
 void test_generate_salt_length(void) {
@@ -314,8 +317,8 @@ void test_slot0_password_change_permitted(void) {
                                            testRandFn, testHashFn);
     TEST_ASSERT_EQUAL(AUTH_USER_OK, r);
     const AuthUser *u = authFindUser(&g_store, "admin");
-    TEST_ASSERT_TRUE(authVerifyPassword("newpassword12", u->salt, u->hash, testHashFn));
-    TEST_ASSERT_FALSE(authVerifyPassword("oldpassword",  u->salt, u->hash, testHashFn));
+    TEST_ASSERT_TRUE(authVerifyPassword("newpassword12", u->salt, u->hash, testHashFn, u->iterations));
+    TEST_ASSERT_FALSE(authVerifyPassword("oldpassword",  u->salt, u->hash, testHashFn, u->iterations));
 }
 
 void test_delete_non_slot0_preserves_slot0_protection(void) {
@@ -578,6 +581,125 @@ void test_rate_limit_slot_eviction(void) {
     // Should not crash or lose state
 }
 
+// ── PBKDF2 key stretching tests ─────────────────────────────────────────────
+
+void test_pbkdf2_hash_differs_from_legacy(void) {
+    char salt[33], hash_legacy[65], hash_pbkdf2[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPasswordLegacy("testpassword", salt, hash_legacy, testHashFn);
+    authHashPasswordPbkdf2("testpassword", salt, 100, hash_pbkdf2, testHashFn);
+    // PBKDF2 output must differ from single-pass
+    TEST_ASSERT_FALSE(strcmp(hash_legacy, hash_pbkdf2) == 0);
+}
+
+void test_pbkdf2_verify_correct_password(void) {
+    char salt[33], hash[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPassword("mypassword", salt, hash, testHashFn, 100);
+    TEST_ASSERT_TRUE(authVerifyPassword("mypassword", salt, hash, testHashFn, 100));
+}
+
+void test_pbkdf2_reject_wrong_password(void) {
+    char salt[33], hash[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPassword("correctpass", salt, hash, testHashFn, 100);
+    TEST_ASSERT_FALSE(authVerifyPassword("wrongpass", salt, hash, testHashFn, 100));
+}
+
+void test_pbkdf2_different_iterations_different_hash(void) {
+    char salt[33], hash_100[65], hash_200[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPasswordPbkdf2("testpassword", salt, 100, hash_100, testHashFn);
+    authHashPasswordPbkdf2("testpassword", salt, 200, hash_200, testHashFn);
+    TEST_ASSERT_FALSE(strcmp(hash_100, hash_200) == 0);
+}
+
+void test_pbkdf2_deterministic(void) {
+    char salt[33], hash1[65], hash2[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPasswordPbkdf2("testpassword", salt, 50, hash1, testHashFn);
+    authHashPasswordPbkdf2("testpassword", salt, 50, hash2, testHashFn);
+    TEST_ASSERT_EQUAL_STRING(hash1, hash2);
+}
+
+void test_legacy_hash_still_verifies_with_zero_iterations(void) {
+    // Backward compatibility: existing users with iterations=0 must still verify
+    char salt[33], hash[65];
+    g_randCounter = 42;
+    authGenerateSalt(salt, testRandFn);
+    authHashPassword("oldpassword", salt, hash, testHashFn, 0);
+    TEST_ASSERT_TRUE(authVerifyPassword("oldpassword", salt, hash, testHashFn, 0));
+    // And wrong password must still fail
+    TEST_ASSERT_FALSE(authVerifyPassword("wrongpass", salt, hash, testHashFn, 0));
+}
+
+void test_add_user_sets_pbkdf2_iterations(void) {
+    AuthUserStore store;
+    memset(&store, 0, sizeof(store));
+    g_randCounter = 0;
+    authAddUser(&store, "pbkdf2user", "securepassword", "admin", testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_PBKDF2_ITERATIONS, store.users[0].iterations);
+}
+
+void test_change_password_upgrades_to_pbkdf2(void) {
+    AuthUserStore store;
+    memset(&store, 0, sizeof(store));
+    g_randCounter = 0;
+    // Simulate a legacy user with iterations=0
+    authAddUser(&store, "legacyuser", "oldpassword", "viewer", testRandFn, testHashFn);
+    store.users[0].iterations = 0;  // Simulate legacy NVS data
+    // Re-hash with legacy mode so the hash matches iterations=0
+    authHashPassword("oldpassword", store.users[0].salt, store.users[0].hash, testHashFn, 0);
+    // Verify legacy login works
+    TEST_ASSERT_TRUE(authVerifyPassword("oldpassword", store.users[0].salt,
+                                         store.users[0].hash, testHashFn, 0));
+    // Change password — should upgrade to PBKDF2
+    authChangePassword(&store, "legacyuser", "newpassword", testRandFn, testHashFn);
+    TEST_ASSERT_EQUAL(AUTH_PBKDF2_ITERATIONS, store.users[0].iterations);
+    // New password must verify with PBKDF2
+    TEST_ASSERT_TRUE(authVerifyPassword("newpassword", store.users[0].salt,
+                                         store.users[0].hash, testHashFn,
+                                         store.users[0].iterations));
+}
+
+void test_login_with_pbkdf2_user_succeeds(void) {
+    AuthUserStore store;
+    memset(&store, 0, sizeof(store));
+    g_randCounter = 0;
+    authAddUser(&store, "alice", "securepass", "admin", testRandFn, testHashFn);
+    // authAddUser now sets iterations = AUTH_PBKDF2_ITERATIONS
+    LoginOutcome out = authAttemptLogin("alice", "securepass",
+                                         false, nullptr, nullptr,
+                                         &store, testHashFn);
+    TEST_ASSERT_EQUAL(LOGIN_OK, out.result);
+}
+
+void test_hmac_sha256_basic(void) {
+    // Verify HMAC produces different output for different keys
+    uint8_t key1[] = {1, 2, 3, 4};
+    uint8_t key2[] = {5, 6, 7, 8};
+    uint8_t msg[] = "hello";
+    uint8_t out1[32], out2[32];
+    authHmacSha256(key1, 4, msg, 5, out1, testHashFn);
+    authHmacSha256(key2, 4, msg, 5, out2, testHashFn);
+    TEST_ASSERT_FALSE(memcmp(out1, out2, 32) == 0);
+}
+
+void test_hmac_sha256_different_messages(void) {
+    uint8_t key[] = {1, 2, 3, 4};
+    uint8_t msg1[] = "aaa";
+    uint8_t msg2[] = "bbb";
+    uint8_t out1[32], out2[32];
+    authHmacSha256(key, 4, msg1, 3, out1, testHashFn);
+    authHmacSha256(key, 4, msg2, 3, out2, testHashFn);
+    TEST_ASSERT_FALSE(memcmp(out1, out2, 32) == 0);
+}
+
 void test_influx_log_event_fields(void) {
     AuthLogEvent ev = authBuildLogEvent("login_success", "alice",
                                          "192.168.1.50", "nvs");
@@ -635,6 +757,18 @@ int main(int argc, char **argv) {
     RUN_TEST(test_adapter_url_http_rejected);
     RUN_TEST(test_adapter_url_no_scheme_rejected);
     RUN_TEST(test_adapter_url_ftp_rejected);
+    // PBKDF2 key stretching
+    RUN_TEST(test_pbkdf2_hash_differs_from_legacy);
+    RUN_TEST(test_pbkdf2_verify_correct_password);
+    RUN_TEST(test_pbkdf2_reject_wrong_password);
+    RUN_TEST(test_pbkdf2_different_iterations_different_hash);
+    RUN_TEST(test_pbkdf2_deterministic);
+    RUN_TEST(test_legacy_hash_still_verifies_with_zero_iterations);
+    RUN_TEST(test_add_user_sets_pbkdf2_iterations);
+    RUN_TEST(test_change_password_upgrades_to_pbkdf2);
+    RUN_TEST(test_login_with_pbkdf2_user_succeeds);
+    RUN_TEST(test_hmac_sha256_basic);
+    RUN_TEST(test_hmac_sha256_different_messages);
     // Rate limiter tests
     RUN_TEST(test_rate_limit_not_locked_initially);
     RUN_TEST(test_rate_limit_not_locked_after_few_failures);
