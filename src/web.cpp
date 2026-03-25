@@ -257,13 +257,16 @@ void handleSetpoint()
 // Optional ?range=Xh (default 1h). Only [0-9a-zA-Z] accepted to prevent injection.
 void handleHistory()
 {
-  String range = server.hasArg("range") ? server.arg("range") : "1h";
-  bool valid = range.length() > 0 && range.length() <= 8;
-  for (size_t i = 0; valid && i < range.length(); i++)
-    if (!isalnum((unsigned char)range[i]))
-      valid = false;
-  if (!valid)
-    range = "1h";
+  // Whitelist of allowed range values — prevents arbitrary Flux queries
+  static const char *allowedRanges[] = {"1h", "6h", "12h", "24h", "48h", "7d"};
+  static const int numAllowed = sizeof(allowedRanges) / sizeof(allowedRanges[0]);
+  String range = "1h";
+  if (server.hasArg("range")) {
+    String req = server.arg("range");
+    for (int i = 0; i < numAllowed; i++) {
+      if (req == allowedRanges[i]) { range = req; break; }
+    }
+  }
 
   HTTPClient http;
   char url[192];
