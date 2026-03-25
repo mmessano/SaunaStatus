@@ -111,6 +111,22 @@
       <div class="reading" id="tct">--</div>
       <div class="unit">&deg;F</div>
     </div>
+    <div class="section" id="pwrSection" style="display:none;">Power Monitor</div>
+    <div class="card" id="pwrCard" style="display:none;">
+      <h2>Bus Voltage</h2>
+      <div class="reading" id="pvolt">--</div>
+      <div class="unit">V</div>
+    </div>
+    <div class="card" id="pcurrCard" style="display:none;">
+      <h2>Current</h2>
+      <div class="reading" id="pcurr">--</div>
+      <div class="unit">mA</div>
+    </div>
+    <div class="card" id="pmwCard" style="display:none;">
+      <h2>Power</h2>
+      <div class="reading" id="pmw">--</div>
+      <div class="unit">mW</div>
+    </div>
     <div class="section">Control</div>
     <div class="auth-required">
       <div class="card">
@@ -355,6 +371,17 @@
             document.getElementById('bspInput').value = d.bsp !== null ? Math.round(parseFloat(d.bsp)) : 0;
         }
         if ('ben' in d) setPidBtn('bPidBtn', d.ben);
+        if ('pvolt' in d) {
+          var hasPwr = d.pvolt !== null;
+          ['pwrSection','pwrCard','pcurrCard','pmwCard'].forEach(function(id) {
+            document.getElementById(id).style.display = hasPwr ? '' : 'none';
+          });
+          if (hasPwr) {
+            set('pvolt', d.pvolt !== null ? parseFloat(d.pvolt).toFixed(2) : null);
+            set('pcurr', d.pcurr !== null ? parseFloat(d.pcurr).toFixed(1) : null);
+            set('pmw',   d.pmw   !== null ? parseFloat(d.pmw).toFixed(1)   : null);
+          }
+        }
         updateEnvBanner(d);
       };
       ws.onclose = function() {

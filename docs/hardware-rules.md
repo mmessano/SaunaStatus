@@ -1,5 +1,11 @@
 # SaunaStatus Hardware Design Reference
 
+> **⚠ WARNING: This file describes the OLD ESP32-WROOM-32 board (esp32doit-devkit-v1).**
+> The project has migrated to the **LB-ESP32S3-N16R8** (ESP32-S3). GPIO assignments in this
+> file **do not match** the current firmware (`src/gpio_config.h`) or `docs/pinout.md`.
+> For current GPIO assignments, see `docs/pinout.md`. The design constraints in Sections
+> 8–11 contain generally useful lessons but the specific pin numbers are wrong.
+
 Derived from `src/main.cpp`, `docs/pinout.md`, `docs/kicad/SaunaStatus.kicad_sch`,
 `docs/kicad/report.txt`, and `docs/kicad/SCHEMATIC_GEN_RULES.md`.
 

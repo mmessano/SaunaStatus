@@ -23,7 +23,23 @@ Credentials (WiFi SSID/password, InfluxDB URL/token/org/bucket, MQTT broker/user
 
 ## 2. HTTP REST API
 
-All endpoints are registered on port 80. There is no authentication. The `Cache-Control: no-store` header is sent on the root response only.
+All endpoints are registered on port 80. State-mutating routes require `Authorization: Bearer <token>` (see `src/auth.h`). Unauthenticated requests return `401 application/json`. The `Cache-Control: no-store` header is sent on all HTML page responses.
+
+### HTTP Response Conventions
+
+| Outcome | Status | Body pattern |
+|---|---|---|
+| Success (mutation) | 200 | `{"ok":true}` or `{"ok":true,"restart_required":false}` |
+| Success (data) | 200 | `application/json` with data fields |
+| Bad request / validation | 400 | `{"ok":false,"error":"<message>"}` or `{"error":"<message>"}` |
+| Unauthorized | 401 | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+| Forbidden (slot 0) | 403 | `{"error":"cannot delete emergency admin"}` |
+| Not found | 404 | `{"error":"user not found"}` |
+| Conflict | 409 | `{"error":"user limit reached"}` or `{"error":"username taken"}` |
+| Upstream failure | 502 | `{"ok":false,"error":"..."}` or plain text |
+| Server error | 500 | `{"ok":false,"error":"..."}` or plain text |
+
+`handleConfigSave()` uses `goto send_error` to jump from any validation failure to a single error-emit block, ensuring no partial state is applied.
 
 ---
 
@@ -698,93 +714,4 @@ See `GET /history` in Section 2. The device proxies Flux queries to avoid exposi
 
 ## 6. Configuration
 
-### 3-Tier Precedence
-
-Settings are applied in order; each layer overrides the previous:
-
-1. **Build flags** (`platformio.ini` `-D` defines): compile-time defaults. All are `#ifndef`-guarded. See full table below.
-
-2. **`/config.json`** (LittleFS): fleet-level defaults applied after build defaults, before NVS. Deploy with `pio run -t uploadfs`. Motor calibration values (`omx`/`imx`) are intentionally excluded (device-specific). Missing file is silently ignored; parse errors skip the layer.
-
-3. **NVS** (`Preferences`, namespace `sauna`): per-device runtime values written by `/setpoint`, `/pid`, `/motor?cmd=setopen`, and `/config/save`. NVS wins over all lower layers. A key is only loaded if it already exists (`prefs.isKey()` guard), preventing NVS from reverting a `/config.json` value on first boot.
-
----
-
-### Build Flags (Tier 1)
-
-All can be set in `platformio.ini` under `build_flags` using `-DNAME=value`. Commented-out examples are included in `platformio.ini`.
-
-| Flag | Default | Description |
-|---|---|---|
-| `DEFAULT_CEILING_SP_F` | `160.0f` | Ceiling PID setpoint at boot (°F) |
-| `DEFAULT_BENCH_SP_F` | `120.0f` | Bench PID setpoint at boot (°F) |
-| `TEMP_LIMIT_C` | `120.0f` | Overheat alarm threshold (°C / 248°F) |
-| `SERIAL_LOG_INTERVAL_MS` | `10000` | Serial status log interval (ms) |
-| `STALE_THRESHOLD_MS` | `10000UL` | DHT stale-reading timeout (ms); 0 disables |
-| `INFLUX_WRITE_INTERVAL_MS` | `60000UL` | InfluxDB write interval (ms) |
-| `MQTT_RECONNECT_INTERVAL_MS` | `5000UL` | MQTT reconnect retry interval (ms) |
-| `MOTOR_RPM` | `12` | Stepper motor speed (RPM) |
-| `PID_MIN_STEP_DELTA` | `5` | Minimum PID output delta (steps) to actuate motor |
-| `PID_CONSERVATIVE_THRESHOLD_C` | `10.0f` | Error threshold to switch to conservative PID tuning (°C) |
-| `SETPOINT_MIN_F` | `32.0f` | Minimum valid setpoint (°F) |
-| `SETPOINT_MAX_F` | `300.0f` | Maximum valid setpoint (°F) |
-| `DEFAULT_SENSOR_READ_INTERVAL_MS` | `2000UL` | Default sensor read interval (ms) |
-| `DEFAULT_STATIC_IP` | `"192.168.1.200"` | Default device static IP |
-| `WS_JSON_BUF_SIZE` | `320` | WebSocket JSON output buffer (bytes) |
-| `MQTT_BUF_SIZE` | `512` | MQTT client buffer size (bytes) |
-| `NTP_SERVER_LOCAL` | `"192.168.1.100"` | Primary NTP server |
-| `WIFI_GATEWAY_IP` | `192, 168, 1, 100` | WiFi gateway (IPAddress comma-separated) |
-| `WIFI_DNS_IP` | `8, 8, 8, 8` | Primary DNS (IPAddress comma-separated) |
-| `SENSOR_READ_INTERVAL_MIN_MS` | `500UL` | Minimum sensor read interval (ms) |
-| `SENSOR_READ_INTERVAL_MAX_MS` | `10000UL` | Maximum sensor read interval (ms) |
-| `SERIAL_LOG_INTERVAL_MIN_MS` | `1000UL` | Minimum serial log interval (ms) |
-| `SERIAL_LOG_INTERVAL_MAX_MS` | `60000UL` | Maximum serial log interval (ms) |
-
----
-
-### `/config.json` Format (Tier 2)
-
-```json
-{
-  "ceiling_setpoint_f": 160.0,
-  "bench_setpoint_f": 120.0,
-  "ceiling_pid_enabled": false,
-  "bench_pid_enabled": false,
-  "sensor_read_interval_ms": 2000,
-  "serial_log_interval_ms": 10000,
-  "static_ip": "192.168.1.200",
-  "device_name": "sauna"
-}
-```
-
-| Key | Type | Valid Range | Description |
-|---|---|---|---|
-| `ceiling_setpoint_f` | float | 32.0–300.0 °F | Ceiling PID setpoint |
-| `bench_setpoint_f` | float | 32.0–300.0 °F | Bench PID setpoint |
-| `ceiling_pid_enabled` | bool | `true`/`false` | Initial ceiling PID enable state |
-| `bench_pid_enabled` | bool | `true`/`false` | Initial bench PID enable state |
-| `sensor_read_interval_ms` | uint | 500–10000 | Sensor read / WebSocket broadcast interval (ms) |
-| `serial_log_interval_ms` | uint | 1000–60000 | Serial log interval (ms) |
-| `static_ip` | string | valid IPv4 | Device static IP (takes effect after restart) |
-| `device_name` | string | 1–24 chars, `[A-Za-z0-9_-]` | Device name (takes effect after restart) |
-
-Values outside the valid range are silently ignored.
-
----
-
-### NVS Keys (Tier 3, namespace `sauna`)
-
-| Key | Type | Units | Description | Written By |
-|---|---|---|---|---|
-| `csp` | float | °C | Ceiling setpoint | `GET /setpoint?ceiling=`, `POST /config/save`, MQTT `sauna/ceiling_setpoint/set` |
-| `bsp` | float | °C | Bench setpoint | `GET /setpoint?bench=`, `POST /config/save`, MQTT `sauna/bench_setpoint/set` |
-| `cen` | bool | — | Ceiling PID enabled | `GET /pid?ceiling=`, `POST /config/save`, MQTT `sauna/ceiling_pid/set` |
-| `ben` | bool | — | Bench PID enabled | `GET /pid?bench=`, `POST /config/save`, MQTT `sauna/bench_pid/set` |
-| `omx` | int | steps | Outflow motor calibrated full-open steps | `GET /motor?motor=outflow&cmd=setopen` |
-| `imx` | int | steps | Inflow motor calibrated full-open steps | `GET /motor?motor=inflow&cmd=setopen` |
-| `sri` | uint | ms | Sensor read interval | `POST /config/save` |
-| `slg` | uint | ms | Serial log interval | `POST /config/save` |
-| `sip` | string | — | Static IP address (restart required) | `POST /config/save` |
-| `dn` | string | — | Device name (restart required) | `POST /config/save` |
-
-Setpoints are stored in °C (converted from the °F API values at write time). Default values before any NVS write: `omx=1024`, `imx=1024` (`VENT_STEPS`).
+→ See `docs/config-reference.md` for the full 3-tier configuration system (build flags, LittleFS `/config.json`, NVS keys).

@@ -840,8 +840,13 @@ void loop()
       // Power monitor
       if (ina260_ok)
       {
-        Serial.printf("Power     | %6.2f V | %7.1f mA | %8.1f mW\n",
-                      pwr_bus_V, pwr_current_mA, pwr_mW);
+        Serial.println(F("Power     |  Voltage  |   Current  |     Power"));
+        Serial.println(F("----------|-----------|------------|----------"));
+        if (!isnan(pwr_bus_V) && !isnan(pwr_current_mA) && !isnan(pwr_mW))
+          Serial.printf("INA260    | %7.2f V | %8.1f mA | %7.1f mW\n",
+                        pwr_bus_V, pwr_current_mA, pwr_mW);
+        else
+          Serial.println("INA260    |       ERR |        ERR |       ERR");
         Serial.println();
       }
     }

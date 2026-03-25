@@ -33,6 +33,15 @@ Set via `-D` flags in `platformio.ini` under `build_flags`. Values in `src/main.
 | `SENSOR_READ_INTERVAL_MAX_MS` | `10000UL` | Maximum sensor read interval (ms) |
 | `SERIAL_LOG_INTERVAL_MIN_MS` | `1000UL` | Minimum serial log interval (ms) |
 | `SERIAL_LOG_INTERVAL_MAX_MS` | `60000UL` | Maximum serial log interval (ms) |
+| `RREF` | `4300.0` | MAX31865 reference resistor value (Ω) |
+| `RNOMINAL` | `1000.0` | MAX31865 nominal resistance at 0°C (Ω) — PT1000 = 1000 |
+| `AUTH_TOKEN_TTL_MS` | `3600000UL` (1 hour) | Session token time-to-live |
+| `AUTH_MAX_SESSIONS` | `10` | Concurrent session slots |
+| `AUTH_MAX_USERS` | `5` | Maximum stored users |
+| `AUTH_MIN_PASS_LEN` | `8` | Minimum password length |
+| `AUTH_MAX_PASS_LEN` | `72` | Maximum password length (bounds SHA-256 buffer) |
+| `OTA_MAX_BOOT_FAILURES` | `3` | Consecutive boot failures before rollback |
+| `FIRMWARE_VERSION` | `"1.0.0"` | Firmware version string for OTA comparison |
 
 Commented-out override examples are available in `platformio.ini` under `build_flags`.
 
@@ -88,6 +97,14 @@ Namespace: `sauna`. Written by HTTP `/setpoint`, `/pid`, `/motor?cmd=setopen`, a
 | `slg` | uint | ms | Serial log interval | `/config/save` |
 | `sip` | string | — | Static IP address (requires restart) | `/config/save` |
 | `dn` | string | — | Device name (requires restart) | `/config/save` |
+| `boot_fail` | int | — | Consecutive boot failure count (OTA rollback) | `otaCheckBootHealth()` on every boot |
+| `ota_ip` | bool | — | OTA download in-progress flag | `handleOtaUpdate()` |
+| `ota_exp` | uint | bytes | Expected firmware size (OTA) | `handleOtaUpdate()` |
+| `ota_wrt` | uint | bytes | Bytes written so far (OTA) | `handleOtaUpdate()` |
+
+### Namespace `sauna_auth`
+
+Users stored as `u0_name`, `u0_hash`, `u0_salt`, `u0_role` … `u4_*`. `authNvsLoad()` breaks on first missing `u{i}_name`. `authNvsSave()` clears name keys for removed users to prevent orphans. External adapter config: `db_url` and `db_key`.
 
 ---
 
@@ -101,10 +118,10 @@ Fixed values tied to the physical hardware. Not intended to be overridden withou
 | `TZ_INFO` | `"CST6CDT,M3.2.0,M11.1.0"` | POSIX timezone string (US Central) |
 | `RREF` | `4300.0` | MAX31865 reference resistor value (Ω) |
 | `RNOMINAL` | `1000.0` | PT1000 nominal resistance at 0°C (Ω) |
-| `INA260_SDA` | `4` | I2C SDA GPIO for INA260 power monitor |
-| `INA260_SCL` | `13` | I2C SCL GPIO for INA260 power monitor |
-| `DHTPIN_CEILING` | `16` | GPIO for ceiling DHT21 sensor |
-| `DHTPIN_BENCH` | `17` | GPIO for bench DHT21 sensor |
+| `INA260_SDA` | `1` | I2C SDA GPIO for INA260 power monitor |
+| `INA260_SCL` | `2` | I2C SCL GPIO for INA260 power monitor |
+| `DHTPIN_CEILING` | `8` | GPIO for ceiling DHT21 sensor |
+| `DHTPIN_BENCH` | `9` | GPIO for bench DHT21 sensor |
 | `DHTTYPE` | `DHT21` | DHT sensor model (AM2301) |
 | `VENT_STEPS` | `1024` | Default full-open step count (90° on 28BYJ-48); overridden at runtime by `omx`/`imx` from NVS |
 
@@ -126,5 +143,26 @@ Defined in `src/secrets.h` (not committed to version control). See `CLAUDE.md` f
 | `MQTT_PORT` | MQTT broker port (default 1883) |
 | `MQTT_USER` | MQTT username (empty string = no auth) |
 | `MQTT_PASS` | MQTT password |
+| `AUTH_ADMIN_USER` | Emergency admin username (seeded on first boot) |
+| `AUTH_ADMIN_PASS` | Emergency admin password (min 8 chars; change immediately after first boot) |
+
+Both `AUTH_ADMIN_USER` and `AUTH_ADMIN_PASS` are enforced by `#error` guards at the top of `main.cpp` — omitting either causes a compile error.
+
+#### Template
+
+```cpp
+#define WIFI_SSID        "..."
+#define WIFI_PASSWORD    "..."
+#define INFLUXDB_URL     "http://192.168.1.125:30115"
+#define INFLUXDB_TOKEN   "..."
+#define INFLUXDB_ORG     "..."
+#define INFLUXDB_BUCKET  "..."
+#define MQTT_BROKER      "192.168.1.125"
+#define MQTT_PORT        1883
+#define MQTT_USER        "..."   // set to "" to connect without credentials
+#define MQTT_PASS        "..."
+#define AUTH_ADMIN_USER  "admin"
+#define AUTH_ADMIN_PASS  "..."   // min 8 chars; change immediately after first boot
+```
 
 Static IP, gateway, and DNS default values are set by build flags (`DEFAULT_STATIC_IP`, `WIFI_GATEWAY_IP`, `WIFI_DNS_IP`). Static IP can be overridden at runtime via Tier 2 `/config.json` or Tier 3 NVS via `POST /config/save`; a restart is required for the new IP to take effect.
