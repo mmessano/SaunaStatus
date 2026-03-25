@@ -563,14 +563,27 @@
     function loadUsers() {
       authFetch('/users').then(function(r){ return r.json(); }).then(function(list) {
         var el = document.getElementById('usersList');
+        el.innerHTML = '';
         if (!list || !list.length) { el.innerText = 'No users found.'; return; }
-        el.innerHTML = list.map(function(u) {
-          return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2d3748;">' +
-            '<span>' + u.username + ' <small style="color:#718096;">(' + u.role + ')</small></span>' +
-            (u.protected ? '' :
-              '<button onclick="deleteUser(\'' + u.username + '\')" style="background:#e94560;color:#fff;border:none;border-radius:4px;padding:2px 10px;cursor:pointer;">Delete</button>') +
-          '</div>';
-        }).join('');
+        list.forEach(function(u) {
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2d3748;';
+          var span = document.createElement('span');
+          span.textContent = u.username + ' ';
+          var small = document.createElement('small');
+          small.style.color = '#718096';
+          small.textContent = '(' + u.role + ')';
+          span.appendChild(small);
+          row.appendChild(span);
+          if (!u.protected) {
+            var btn = document.createElement('button');
+            btn.style.cssText = 'background:#e94560;color:#fff;border:none;border-radius:4px;padding:2px 10px;cursor:pointer;';
+            btn.textContent = 'Delete';
+            btn.addEventListener('click', function() { deleteUser(u.username); });
+            row.appendChild(btn);
+          }
+          el.appendChild(row);
+        });
       });
     }
 
