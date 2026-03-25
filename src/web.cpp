@@ -418,6 +418,13 @@ void handleOtaUpdate()
   }
   String manifestUrl = server.arg("manifest");
 
+  // Validate manifest URL: must be HTTPS and on an allowed host
+  if (!otaValidateUrl(manifestUrl.c_str())) {
+    server.send(403, "application/json",
+                "{\"ok\":false,\"error\":\"manifest URL rejected: must be HTTPS on an allowed host\"}");
+    return;
+  }
+
   // Fetch manifest
   HTTPClient http;
   http.begin(manifestUrl);
@@ -448,6 +455,13 @@ void handleOtaUpdate()
              "{\"ok\":true,\"updated\":false,\"reason\":\"current %s >= manifest %s\"}",
              FIRMWARE_VERSION, manifest.version);
     server.send(200, "application/json", msg);
+    return;
+  }
+
+  // Validate firmware binary URL from manifest
+  if (!otaValidateUrl(manifest.url)) {
+    server.send(403, "application/json",
+                "{\"ok\":false,\"error\":\"firmware URL rejected: must be HTTPS on an allowed host\"}");
     return;
   }
 

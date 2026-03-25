@@ -190,6 +190,78 @@ void test_ota_zero_expected_not_incomplete(void) {
     TEST_ASSERT_FALSE(isOtaIncomplete(s));
 }
 
+// ── URL validation tests ─────────────────────────────────────────────────────
+
+void test_ota_extract_hostname_https(void) {
+    char host[64];
+    TEST_ASSERT_TRUE(otaExtractHostname("https://firmware.example.com/path", host, sizeof(host)));
+    TEST_ASSERT_EQUAL_STRING("firmware.example.com", host);
+}
+
+void test_ota_extract_hostname_http(void) {
+    char host[64];
+    TEST_ASSERT_TRUE(otaExtractHostname("http://192.168.1.100/fw.bin", host, sizeof(host)));
+    TEST_ASSERT_EQUAL_STRING("192.168.1.100", host);
+}
+
+void test_ota_extract_hostname_with_port(void) {
+    char host[64];
+    TEST_ASSERT_TRUE(otaExtractHostname("https://host.local:8443/manifest", host, sizeof(host)));
+    TEST_ASSERT_EQUAL_STRING("host.local", host);
+}
+
+void test_ota_extract_hostname_no_scheme(void) {
+    char host[64];
+    TEST_ASSERT_FALSE(otaExtractHostname("ftp://bad.com/file", host, sizeof(host)));
+}
+
+void test_ota_extract_hostname_empty(void) {
+    char host[64];
+    TEST_ASSERT_FALSE(otaExtractHostname("", host, sizeof(host)));
+    TEST_ASSERT_FALSE(otaExtractHostname(nullptr, host, sizeof(host)));
+}
+
+void test_ota_is_https(void) {
+    TEST_ASSERT_TRUE(otaIsHttps("https://example.com/fw.bin"));
+    TEST_ASSERT_FALSE(otaIsHttps("http://example.com/fw.bin"));
+    TEST_ASSERT_FALSE(otaIsHttps("ftp://example.com/fw.bin"));
+    TEST_ASSERT_FALSE(otaIsHttps(nullptr));
+}
+
+void test_ota_host_allowed_single(void) {
+    TEST_ASSERT_TRUE(otaHostAllowed("firmware.example.com", "firmware.example.com"));
+    TEST_ASSERT_FALSE(otaHostAllowed("evil.com", "firmware.example.com"));
+}
+
+void test_ota_host_allowed_multiple(void) {
+    const char *list = "fw1.example.com, fw2.example.com, 192.168.1.100";
+    TEST_ASSERT_TRUE(otaHostAllowed("fw1.example.com", list));
+    TEST_ASSERT_TRUE(otaHostAllowed("fw2.example.com", list));
+    TEST_ASSERT_TRUE(otaHostAllowed("192.168.1.100", list));
+    TEST_ASSERT_FALSE(otaHostAllowed("evil.com", list));
+}
+
+void test_ota_host_allowed_empty_list(void) {
+    TEST_ASSERT_FALSE(otaHostAllowed("anything.com", ""));
+    TEST_ASSERT_FALSE(otaHostAllowed("anything.com", nullptr));
+}
+
+void test_ota_host_allowed_empty_hostname(void) {
+    TEST_ASSERT_FALSE(otaHostAllowed("", "example.com"));
+    TEST_ASSERT_FALSE(otaHostAllowed(nullptr, "example.com"));
+}
+
+void test_ota_validate_url_rejects_http(void) {
+    // otaValidateUrl requires HTTPS — always rejects http://
+    TEST_ASSERT_FALSE(otaValidateUrl("http://192.168.1.100/manifest.json"));
+}
+
+void test_ota_validate_url_rejects_unknown_host(void) {
+    // Even with HTTPS, host must be in OTA_ALLOWED_HOSTS (default is empty)
+    // With default empty allowlist, all URLs are rejected
+    TEST_ASSERT_FALSE(otaValidateUrl("https://random.host.com/fw.bin"));
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
 
@@ -227,6 +299,20 @@ int main(int argc, char **argv) {
     RUN_TEST(test_ota_complete_not_incomplete);
     RUN_TEST(test_ota_not_started_not_incomplete);
     RUN_TEST(test_ota_zero_expected_not_incomplete);
+
+    // URL validation
+    RUN_TEST(test_ota_extract_hostname_https);
+    RUN_TEST(test_ota_extract_hostname_http);
+    RUN_TEST(test_ota_extract_hostname_with_port);
+    RUN_TEST(test_ota_extract_hostname_no_scheme);
+    RUN_TEST(test_ota_extract_hostname_empty);
+    RUN_TEST(test_ota_is_https);
+    RUN_TEST(test_ota_host_allowed_single);
+    RUN_TEST(test_ota_host_allowed_multiple);
+    RUN_TEST(test_ota_host_allowed_empty_list);
+    RUN_TEST(test_ota_host_allowed_empty_hostname);
+    RUN_TEST(test_ota_validate_url_rejects_http);
+    RUN_TEST(test_ota_validate_url_rejects_unknown_host);
 
     return UNITY_END();
 }

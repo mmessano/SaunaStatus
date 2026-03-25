@@ -94,6 +94,69 @@ inline OtaManifest parseOtaManifest(const char *json) {
 }
 
 // =============================================================================
+// OTA URL validation — allowlist and scheme enforcement
+// =============================================================================
+
+// Build-time allowlist of permitted OTA hostnames (comma-separated in define).
+// If OTA_ALLOWED_HOSTS is not defined, OTA URL validation rejects ALL URLs
+// (safe default — must be explicitly configured to enable OTA).
+#ifndef OTA_ALLOWED_HOSTS
+#define OTA_ALLOWED_HOSTS ""
+#endif
+
+// Extracts the hostname from a URL. Returns false if URL is malformed.
+// Supports http:// and https:// schemes. Writes hostname into out[outLen].
+inline bool otaExtractHostname(const char *url, char *out, size_t outLen) {
+    if (!url || !*url) return false;
+    const char *p = url;
+    // Skip scheme
+    if (strncmp(p, "https://", 8) == 0) p += 8;
+    else if (strncmp(p, "http://", 7) == 0) p += 7;
+    else return false;  // unknown scheme
+    // Extract hostname (up to '/', ':', or end)
+    size_t i = 0;
+    while (*p && *p != '/' && *p != ':' && i < outLen - 1) out[i++] = *p++;
+    out[i] = '\0';
+    return i > 0;
+}
+
+// Returns true if the URL uses HTTPS
+inline bool otaIsHttps(const char *url) {
+    return url && strncmp(url, "https://", 8) == 0;
+}
+
+// Returns true if hostname is in the comma-separated allowlist.
+// Empty allowlist = nothing allowed (safe default).
+inline bool otaHostAllowed(const char *hostname, const char *allowlist) {
+    if (!hostname || !hostname[0] || !allowlist || !allowlist[0]) return false;
+    size_t hlen = strlen(hostname);
+    const char *p = allowlist;
+    while (*p) {
+        // Skip leading whitespace/commas
+        while (*p == ',' || *p == ' ') p++;
+        if (!*p) break;
+        // Find end of this entry
+        const char *end = p;
+        while (*end && *end != ',') end++;
+        size_t elen = (size_t)(end - p);
+        // Trim trailing whitespace
+        while (elen > 0 && p[elen - 1] == ' ') elen--;
+        if (elen == hlen && strncmp(p, hostname, hlen) == 0) return true;
+        p = end;
+    }
+    return false;
+}
+
+// Full OTA URL validation: HTTPS required + hostname must be in allowlist.
+// Returns true if URL is acceptable for OTA download.
+inline bool otaValidateUrl(const char *url) {
+    if (!otaIsHttps(url)) return false;
+    char hostname[64];
+    if (!otaExtractHostname(url, hostname, sizeof(hostname))) return false;
+    return otaHostAllowed(hostname, OTA_ALLOWED_HOSTS);
+}
+
+// =============================================================================
 // Boot-failure rollback — pure threshold logic
 // =============================================================================
 
