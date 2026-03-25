@@ -81,36 +81,55 @@ void test_version_compare_newer_major(void) {
 // =============================================================================
 
 void test_manifest_valid(void) {
-    const char *json = "{\"version\":\"1.2.3\",\"url\":\"http://server/fw.bin\",\"md5\":\"abc123\"}";
+    const char *json = "{\"version\":\"1.2.3\",\"url\":\"http://server/fw.bin\","
+                       "\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
     OtaManifest m = parseOtaManifest(json);
     TEST_ASSERT_TRUE(m.valid);
     TEST_ASSERT_EQUAL_STRING("1.2.3", m.version);
     TEST_ASSERT_EQUAL_STRING("http://server/fw.bin", m.url);
-    TEST_ASSERT_EQUAL_STRING("abc123", m.md5);
+    TEST_ASSERT_EQUAL_STRING("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                             m.sha256);
 }
 
 void test_manifest_missing_url_invalid(void) {
-    const char *json = "{\"version\":\"1.2.3\",\"md5\":\"abc123\"}";
+    const char *json = "{\"version\":\"1.2.3\",\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
     OtaManifest m = parseOtaManifest(json);
     TEST_ASSERT_FALSE(m.valid);
 }
 
 void test_manifest_missing_version_invalid(void) {
-    const char *json = "{\"url\":\"http://server/fw.bin\",\"md5\":\"abc123\"}";
+    const char *json = "{\"url\":\"http://server/fw.bin\",\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
     OtaManifest m = parseOtaManifest(json);
     TEST_ASSERT_FALSE(m.valid);
 }
 
-void test_manifest_md5_optional(void) {
-    // md5 is optional — manifest without it is still valid
+void test_manifest_sha256_required(void) {
+    // sha256 is now required — manifest without it is invalid
     const char *json = "{\"version\":\"1.0.0\",\"url\":\"http://server/fw.bin\"}";
     OtaManifest m = parseOtaManifest(json);
+    TEST_ASSERT_FALSE(m.valid);
+}
+
+void test_manifest_md5_alone_not_sufficient(void) {
+    // md5 alone does not satisfy the hash requirement
+    const char *json = "{\"version\":\"1.0.0\",\"url\":\"http://server/fw.bin\",\"md5\":\"abc123\"}";
+    OtaManifest m = parseOtaManifest(json);
+    TEST_ASSERT_FALSE(m.valid);
+}
+
+void test_manifest_md5_with_sha256_valid(void) {
+    // Both md5 and sha256 present — valid (sha256 takes precedence)
+    const char *json = "{\"version\":\"1.0.0\",\"url\":\"http://server/fw.bin\","
+                       "\"md5\":\"abc123\","
+                       "\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
+    OtaManifest m = parseOtaManifest(json);
     TEST_ASSERT_TRUE(m.valid);
-    TEST_ASSERT_EQUAL_STRING("", m.md5);
+    TEST_ASSERT_EQUAL_STRING("abc123", m.md5);
 }
 
 void test_manifest_no_update_needed_same_version(void) {
-    const char *json = "{\"version\":\"1.0.0\",\"url\":\"http://server/fw.bin\"}";
+    const char *json = "{\"version\":\"1.0.0\",\"url\":\"http://server/fw.bin\","
+                       "\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
     OtaManifest m = parseOtaManifest(json);
     FirmwareVersion current  = parseVersion("1.0.0");
     FirmwareVersion manifest = parseVersion(m.version);
@@ -119,7 +138,8 @@ void test_manifest_no_update_needed_same_version(void) {
 }
 
 void test_manifest_no_update_needed_older_version(void) {
-    const char *json = "{\"version\":\"0.9.0\",\"url\":\"http://server/fw.bin\"}";
+    const char *json = "{\"version\":\"0.9.0\",\"url\":\"http://server/fw.bin\","
+                       "\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
     OtaManifest m = parseOtaManifest(json);
     FirmwareVersion current  = parseVersion("1.0.0");
     FirmwareVersion manifest = parseVersion(m.version);
@@ -128,7 +148,8 @@ void test_manifest_no_update_needed_older_version(void) {
 }
 
 void test_manifest_update_available_newer_version(void) {
-    const char *json = "{\"version\":\"1.1.0\",\"url\":\"http://server/fw.bin\"}";
+    const char *json = "{\"version\":\"1.1.0\",\"url\":\"http://server/fw.bin\","
+                       "\"sha256\":\"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"}";
     OtaManifest m = parseOtaManifest(json);
     FirmwareVersion current  = parseVersion("1.0.0");
     FirmwareVersion manifest = parseVersion(m.version);
@@ -283,7 +304,9 @@ int main(int argc, char **argv) {
     RUN_TEST(test_manifest_valid);
     RUN_TEST(test_manifest_missing_url_invalid);
     RUN_TEST(test_manifest_missing_version_invalid);
-    RUN_TEST(test_manifest_md5_optional);
+    RUN_TEST(test_manifest_sha256_required);
+    RUN_TEST(test_manifest_md5_alone_not_sufficient);
+    RUN_TEST(test_manifest_md5_with_sha256_valid);
     RUN_TEST(test_manifest_no_update_needed_same_version);
     RUN_TEST(test_manifest_no_update_needed_older_version);
     RUN_TEST(test_manifest_update_available_newer_version);

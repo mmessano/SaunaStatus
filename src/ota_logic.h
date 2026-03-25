@@ -59,7 +59,8 @@ inline bool isUpdateAvailable(const FirmwareVersion &current,
 struct OtaManifest {
     char version[16] = "";  // "major.minor.patch"
     char url[128]    = "";  // firmware binary URL
-    char md5[33]     = "";  // optional MD5 hex digest (32 chars + NUL)
+    char md5[33]     = "";  // deprecated MD5 hex digest (32 chars + NUL) — ignored if sha256 present
+    char sha256[65]  = "";  // SHA-256 hex digest (64 chars + NUL) — preferred
     bool valid       = false;
 };
 
@@ -88,8 +89,11 @@ inline OtaManifest parseOtaManifest(const char *json) {
     if (!json || !*json) return m;
     bool hasVer = _otaExtractStr(json, "version", m.version, sizeof(m.version));
     bool hasUrl = _otaExtractStr(json, "url",     m.url,     sizeof(m.url));
-    _otaExtractStr(json, "md5", m.md5, sizeof(m.md5));  // optional, ignore return
-    m.valid = hasVer && hasUrl;
+    _otaExtractStr(json, "md5",    m.md5,    sizeof(m.md5));     // legacy, ignore return
+    _otaExtractStr(json, "sha256", m.sha256, sizeof(m.sha256));  // preferred
+    // sha256 is required for security; md5 alone is not sufficient
+    bool hasHash = m.sha256[0] != '\0';
+    m.valid = hasVer && hasUrl && hasHash;
     return m;
 }
 

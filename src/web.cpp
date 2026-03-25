@@ -493,7 +493,11 @@ void handleOtaUpdate()
     return;
   }
 
-  if (manifest.md5[0]) Update.setMD5(manifest.md5);
+  // SHA-256 integrity check: compute hash during streaming, verify after download.
+  // MD5 is deprecated and ignored when sha256 is present.
+  mbedtls_sha256_context sha_ctx;
+  mbedtls_sha256_init(&sha_ctx);
+  mbedtls_sha256_starts(&sha_ctx, 0);  // 0 = SHA-256
 
   // Mark download in progress in NVS so a power failure is detectable at next boot
   prefs.begin("sauna", false);
@@ -503,13 +507,43 @@ void handleOtaUpdate()
   prefs.end();
 
   Serial.printf("OTA: writing %d bytes from %s\n", fwSize, manifest.url);
-  size_t written = Update.writeStream(*http.getStreamPtr());
+
+  // Stream firmware through SHA-256 hash while writing to Update partition
+  WiFiClient *stream = http.getStreamPtr();
+  uint8_t otaBuf[512];
+  size_t written = 0;
+  while (written < (size_t)fwSize) {
+    size_t toRead = sizeof(otaBuf);
+    if (toRead > (size_t)fwSize - written) toRead = (size_t)fwSize - written;
+    int bytesRead = stream->readBytes(otaBuf, toRead);
+    if (bytesRead <= 0) break;
+    mbedtls_sha256_update(&sha_ctx, otaBuf, bytesRead);
+    Update.write(otaBuf, bytesRead);
+    written += bytesRead;
+  }
   http.end();
 
   // Update NVS with bytes written (best-effort — power may fail here)
   prefs.begin("sauna", false);
   prefs.putUInt("ota_wrt", (unsigned int)written);
   prefs.end();
+
+  // Verify SHA-256 before finalizing
+  uint8_t sha_digest[32];
+  mbedtls_sha256_finish(&sha_ctx, sha_digest);
+  mbedtls_sha256_free(&sha_ctx);
+  char computed_sha[65];
+  for (int i = 0; i < 32; i++) {
+    snprintf(computed_sha + i * 2, 3, "%02x", sha_digest[i]);
+  }
+  if (strncmp(computed_sha, manifest.sha256, 64) != 0) {
+    Update.abort();
+    Serial.printf("OTA: SHA-256 mismatch — expected %.16s... got %.16s...\n",
+                  manifest.sha256, computed_sha);
+    server.send(400, "application/json",
+                "{\"ok\":false,\"error\":\"SHA-256 verification failed\"}");
+    return;
+  }
 
   if (!Update.end(true) || !Update.isFinished()) {
     char err[96];
@@ -519,12 +553,13 @@ void handleOtaUpdate()
     return;
   }
 
-  // Clear in-progress flag — download completed successfully
+  // Clear in-progress flag — download completed and verified successfully
   prefs.begin("sauna", false);
   prefs.putBool("ota_ip", false);
   prefs.end();
 
-  Serial.printf("OTA: success (%zu bytes), rebooting to %s\n", written, manifest.version);
+  Serial.printf("OTA: success (%zu bytes, SHA-256 verified), rebooting to %s\n",
+                written, manifest.version);
   server.send(200, "application/json",
               "{\"ok\":true,\"updated\":true,\"rebooting\":true}");
   delay(500);
