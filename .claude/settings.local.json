@@ -102,7 +102,10 @@
       "Bash(echo \"Exit code: $?\")",
       "Bash(SCH=docs/kicad/SaunaStatus.kicad_sch)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(/home/mmessano/Documents/repos/pcb/target/release/pcb import:*)"
+      "Bash(/home/mmessano/Documents/repos/pcb/target/release/pcb import:*)",
+      "Bash(cat ~/.claude/plugins/cache/*/.*version* ~/.claude/plugins/cache/*/.git)",
+      "Bash(cat ~/.claude/plugins/*.json)",
+      "Bash(claude plugin:*)"
     ]
   },
   "enabledMcpjsonServers": [
