@@ -369,3 +369,75 @@ if written == 0:
 print(f"  [refresh] {written} skill file(s) written.")
 PYEOF
 fi
+
+# ── Step 5: hook verification ─────────────────────────────────────────────────
+
+step 5 "Post-commit hook verification"
+
+log "Running post-commit hook in dry-run mode (SKIP_BUILD=1)..."
+HOOK_OUT="$(SKIP_BUILD=1 bash "$REPO/scripts/update-handoff.sh" 2>&1)" \
+    && HOOK_EXIT=0 || HOOK_EXIT=$?
+
+if [[ "$HOOK_EXIT" -eq 0 ]]; then
+    log "Hook PASS — post-commit hook exits 0."
+else
+    warn "Hook FAIL (exit $HOOK_EXIT) — hook is broken but continuing refresh."
+    echo "$HOOK_OUT" | sed 's/^/    /' >&2
+fi
+
+# ── Step 6: diff + confirm + commit ──────────────────────────────────────────
+
+step 6 "Diff + confirm + commit"
+
+# Collect modified and new files
+MODIFIED_FILES="$(git diff --name-only)"
+NEW_FILES="$(git ls-files --others --exclude-standard \
+    | grep -v 'compile_commands\.json' || true)"
+
+echo ""
+echo "╔════════════════════════════════════════╗"
+echo "║   Documentation Refresh Summary        ║"
+echo "╚════════════════════════════════════════╝"
+echo ""
+
+if [[ -n "$MODIFIED_FILES" ]]; then
+    echo "Modified files:"
+    echo "$MODIFIED_FILES" | sed 's/^/  /'
+    echo ""
+fi
+
+if [[ -n "$NEW_FILES" ]]; then
+    echo "New files (untracked):"
+    echo "$NEW_FILES" | sed 's/^/  /'
+    echo ""
+fi
+
+if [[ -z "$MODIFIED_FILES" && -z "$NEW_FILES" ]]; then
+    log "No changes detected. Nothing to commit."
+    exit 0
+fi
+
+echo "─── git diff --stat ───────────────────────────────────────────────────────"
+git diff --stat
+echo ""
+
+# Stage repo files (exclude compile_commands.json)
+git add CLAUDE.md HANDOFF.md 2>/dev/null || true
+if [[ -n "$NEW_FILES" ]]; then
+    while IFS= read -r nf; do
+        [[ -z "$nf" ]] && continue
+        git add -- "$nf" 2>/dev/null || true
+    done <<< "$NEW_FILES"
+fi
+
+printf "Commit these changes? [y/N] "
+read -r CONFIRM </dev/tty
+
+if [[ "${CONFIRM,,}" == "y" ]]; then
+    git commit -m "chore(docs): refresh documentation and skills" \
+        || die "git commit failed — changes are staged, commit manually"
+    log "Committed: $(git log --oneline -1)"
+else
+    log "Skipped commit. Changes are staged — review and commit manually."
+    git restore --staged . 2>/dev/null || true
+fi
