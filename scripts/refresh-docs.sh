@@ -128,7 +128,7 @@ ${CURRENT_CLAUDE}
 PROMPT_EOF
 
 log "Running claude --print for CLAUDE.md audit (this may take 30-60s)..."
-UPDATED_CLAUDE="$(claude --print "$(cat "$AUDIT_PROMPT_FILE")")" \
+UPDATED_CLAUDE="$(claude --print "$(cat "$AUDIT_PROMPT_FILE")" < /dev/null)" \
     || die "claude --print failed for CLAUDE.md audit"
 
 if [[ -z "$UPDATED_CLAUDE" ]]; then
@@ -218,7 +218,7 @@ $(echo "$HANDOFF_BASE" | tail -80)
 EXTEND_PROMPT_EOF
 
 log "Running claude --print for HANDOFF.md extension (this may take 30-60s)..."
-AI_SECTIONS="$(claude --print "$(cat "$EXTEND_PROMPT_FILE")")" \
+AI_SECTIONS="$(claude --print "$(cat "$EXTEND_PROMPT_FILE")" < /dev/null)" \
     || die "claude --print failed for HANDOFF.md extension"
 
 if [[ -z "$AI_SECTIONS" ]]; then
@@ -331,7 +331,7 @@ ${GIT_PATCHES}
 SKILLS_PROMPT_EOF
 
 log "Running claude --print for skill extraction (this may take 60-90s)..."
-SKILLS_OUTPUT="$(claude --print "$(cat "$SKILLS_PROMPT_FILE")")" \
+SKILLS_OUTPUT="$(claude --print "$(cat "$SKILLS_PROMPT_FILE")" < /dev/null)" \
     || die "claude --print failed for skill extraction"
 
 if [[ -z "$SKILLS_OUTPUT" ]]; then
@@ -375,8 +375,12 @@ fi
 step 5 "Post-commit hook verification"
 
 log "Running post-commit hook in dry-run mode (SKIP_BUILD=1)..."
+# Save AI-extended HANDOFF.md — update-handoff.sh unconditionally overwrites it
+cp "$REPO/HANDOFF.md" "$TMPDIR_REFRESH/handoff_backup.md"
 HOOK_OUT="$(SKIP_BUILD=1 bash "$REPO/scripts/update-handoff.sh" 2>&1)" \
     && HOOK_EXIT=0 || HOOK_EXIT=$?
+# Restore the AI-extended version
+mv "$TMPDIR_REFRESH/handoff_backup.md" "$REPO/HANDOFF.md"
 
 if [[ "$HOOK_EXIT" -eq 0 ]]; then
     log "Hook PASS — post-commit hook exits 0."
