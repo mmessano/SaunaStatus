@@ -98,14 +98,23 @@
       "Bash(pcb --version)",
       "Bash(pcb --help)",
       "Bash(pcb import:*)",
-      "Bash(SCH=\"/home/mmessano/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_sch\")",
+      "Bash(SCH=\"~/Documents/PlatformIO/Projects/SaunaStatus/docs/kicad/SaunaStatus.kicad_sch\")",
       "Bash(echo \"Exit code: $?\")",
       "Bash(SCH=docs/kicad/SaunaStatus.kicad_sch)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(/home/mmessano/Documents/repos/pcb/target/release/pcb import:*)",
+      "Bash(~/Documents/repos/pcb/target/release/pcb import:*)",
       "Bash(cat ~/.claude/plugins/cache/*/.*version* ~/.claude/plugins/cache/*/.git)",
       "Bash(cat ~/.claude/plugins/*.json)",
-      "Bash(claude plugin:*)"
+      "Bash(claude plugin:*)",
+      "Bash(chmod +x ~/Documents/PlatformIO/Projects/SaunaStatus/scripts/refresh-docs.sh)",
+      "Bash(bash -n ~/Documents/PlatformIO/Projects/SaunaStatus/scripts/refresh-docs.sh)",
+      "Bash(bash -n scripts/refresh-docs.sh)",
+      "Bash(claude --print \"Reply with exactly the word: READY\")",
+      "Bash(echo \"EXIT_CODE: $?\")",
+      "Bash(bash scripts/refresh-docs.sh)",
+      "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-embedded-invariants ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)",
+      "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-post-edit-validation ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)",
+      "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-tdd-workflow ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)"
     ]
   },
   "enabledMcpjsonServers": [
