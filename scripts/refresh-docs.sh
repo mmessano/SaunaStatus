@@ -430,8 +430,9 @@ if [[ -n "$NEW_FILES" ]]; then
     done <<< "$NEW_FILES"
 fi
 
+CONFIRM=""
 printf "Commit these changes? [y/N] "
-read -r CONFIRM </dev/tty
+read -r CONFIRM </dev/tty || true
 
 if [[ "${CONFIRM,,}" == "y" ]]; then
     git commit -m "chore(docs): refresh documentation and skills" \
