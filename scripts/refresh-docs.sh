@@ -237,3 +237,135 @@ fi
 } > "$REPO/HANDOFF.md"
 
 log "HANDOFF.md extended with AI sections."
+
+# ── Step 4: skill extraction ──────────────────────────────────────────────────
+
+step 4 "Skill extraction from git history (claude --print)"
+
+# Collect existing skill names to avoid duplication
+EXISTING_PROJECT_SKILLS="$(ls "$REPO/.claude/skills/" 2>/dev/null | sort || echo "(none)")"
+EXISTING_GLOBAL_SKILLS="$(ls ~/.claude/skills/learned/ 2>/dev/null | sort || echo "(none)")"
+
+# Recent git history
+GIT_OVERVIEW="$(git log -60 --no-merges --stat --oneline | head -150)"
+GIT_PATCHES="$(git log -15 --no-merges -p --stat | head -600)"
+
+SKILLS_PROMPT_FILE="$TMPDIR_REFRESH/skills_prompt.txt"
+cat > "$SKILLS_PROMPT_FILE" <<SKILLS_PROMPT_EOF
+You are extracting reusable development patterns from git history for the SaunaStatus ESP32 project.
+
+## Your task
+
+Scan the git history below and identify patterns NOT already covered by existing skills.
+For each new pattern, produce a skill file.
+
+## Output format
+
+For EACH new skill, output a block in this exact format (no deviation):
+
+===FILE: <relative-or-absolute-path>===
+<complete file content>
+===ENDFILE===
+
+Path rules:
+- Project-specific (ESP32/SaunaStatus patterns): .claude/skills/<skill-name>/SKILL.md
+- Broadly reusable patterns: ~/.claude/skills/learned/<skill-name>.md
+- A pattern that is BOTH: output TWO blocks — one for each path
+
+## Skill file format
+
+For .claude/skills/<name>/SKILL.md:
+\`\`\`
+---
+name: <skill-name>
+description: <one-line description of when to invoke this skill>
+---
+
+# <Title>
+
+## When to Use
+<1-2 sentences>
+
+## Pattern / Rules
+<numbered checklist>
+
+## Example
+<concrete code or command example if applicable>
+\`\`\`
+
+For ~/.claude/skills/learned/<name>.md:
+\`\`\`
+---
+name: <skill-name>
+description: <one-line description>
+type: feedback
+---
+
+<body — rule first, then **Why:** line, then **How to apply:** line>
+\`\`\`
+
+## Existing skills (DO NOT duplicate these)
+
+### Project skills (.claude/skills/)
+${EXISTING_PROJECT_SKILLS}
+
+### Global learned skills (~/.claude/skills/learned/)
+${EXISTING_GLOBAL_SKILLS}
+
+## Git history overview (last 60 commits)
+\`\`\`
+${GIT_OVERVIEW}
+\`\`\`
+
+## Recent diffs (last 15 commits)
+\`\`\`
+${GIT_PATCHES}
+\`\`\`
+
+## Instructions
+
+- Identify 2-5 patterns worth capturing as skills
+- Focus on: security hardening workflows, testing patterns, config layering, anything that bit this project
+- Do NOT output anything outside the ===FILE: …=== blocks
+- If you find no new patterns worth capturing, output exactly: NO_NEW_SKILLS
+SKILLS_PROMPT_EOF
+
+log "Running claude --print for skill extraction (this may take 60-90s)..."
+SKILLS_OUTPUT="$(claude --print "$(cat "$SKILLS_PROMPT_FILE")")" \
+    || die "claude --print failed for skill extraction"
+
+if [[ -z "$SKILLS_OUTPUT" ]]; then
+    die "Claude returned empty output for skill extraction"
+fi
+
+if echo "$SKILLS_OUTPUT" | grep -q "^NO_NEW_SKILLS"; then
+    log "No new skills to extract."
+else
+    log "Writing skill files..."
+    export SKILLS_OUTPUT
+    python3 - "$REPO" <<'PYEOF'
+import sys, os, re
+
+repo = sys.argv[1]
+skills_output = os.environ.get("SKILLS_OUTPUT", "")
+pattern = re.compile(r'===FILE:\s*(.+?)===\n(.*?)===ENDFILE===', re.DOTALL)
+written = 0
+
+for m in pattern.finditer(skills_output):
+    raw_path = m.group(1).strip()
+    content  = m.group(2)
+    path = os.path.expanduser(raw_path)
+    if not os.path.isabs(path):
+        path = os.path.join(repo, path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write(content)
+    print(f"  [refresh]   wrote: {raw_path}")
+    written += 1
+
+if written == 0:
+    print("  [refresh] WARNING: no ===FILE: blocks found in skill output", file=sys.stderr)
+    sys.exit(1)
+print(f"  [refresh] {written} skill file(s) written.")
+PYEOF
+fi
