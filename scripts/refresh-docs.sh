@@ -142,3 +142,97 @@ fi
 
 echo "$UPDATED_CLAUDE" > "$REPO/CLAUDE.md"
 log "CLAUDE.md updated."
+
+# ── Step 3: HANDOFF.md AI extension ──────────────────────────────────────────
+
+step 3 "HANDOFF.md AI extension (claude --print)"
+
+# Strip any existing AI sections from previous refresh runs
+HANDOFF_BASE="$(sed '/<!-- REFRESH-AI:START -->/,$ d' "$REPO/HANDOFF.md")"
+
+# Collect context for the prompt
+RECENT_LOG="$(git log --oneline -20)"
+RECENT_SECURITY="$(git log --oneline -40 | grep 'security\|fix\|CRIT\|HIGH\|MED\|LOW' | head -15 || true)"
+TODOS_FOUND="$(grep -rn --include='*.cpp' --include='*.h' \
+    -E '\b(TODO|FIXME|HACK|XXX)\b' "$REPO/src" "$REPO/test" 2>/dev/null | head -30 || true)"
+RECENT_PLANS="$(ls -t "$REPO/docs/superpowers/plans/"*.md 2>/dev/null | head -3 || true)"
+PLAN_CONTENT=""
+for f in $RECENT_PLANS; do
+    PLAN_CONTENT+="### $(basename "$f")"$'\n'
+    PLAN_CONTENT+="$(tail -50 "$f")"$'\n\n'
+done
+
+EXTEND_PROMPT_FILE="$TMPDIR_REFRESH/extend_prompt.txt"
+cat > "$EXTEND_PROMPT_FILE" <<EXTEND_PROMPT_EOF
+You are extending HANDOFF.md for the SaunaStatus ESP32 project with AI-analyzed sections.
+
+Output ONLY the two sections below — no explanation, no preamble.
+Start your output with exactly: <!-- REFRESH-AI:START -->
+End your output with exactly: <!-- REFRESH-AI:END -->
+
+## Section 1: Open Issues (AI Analysis)
+
+Heading: ## AI Analysis: Open Issues
+
+Produce a prioritized list of open issues based on:
+- TODOs/FIXMEs in source (listed below)
+- Any security work that appears incomplete based on commit history
+- Any build failures or test failures mentioned in the current HANDOFF.md
+- Any items flagged as STALE in CLAUDE.md (pass through if found)
+
+Format each issue as: **[PRIORITY] File:line** — description
+
+## Section 2: Recommended Next Steps
+
+Heading: ## AI Analysis: Recommended Next Steps
+
+Based on the recent commit patterns and plan files, produce an ordered list of recommended
+next actions. Be specific — reference files, functions, or commits where relevant.
+Mark each item as one of: [ ] todo, [~] in-progress, [x] done
+
+Include a timestamp: <!-- REFRESHED: ${DATE} -->
+
+## Context
+
+### Recent commits
+\`\`\`
+${RECENT_LOG}
+\`\`\`
+
+### Security-related commits
+\`\`\`
+${RECENT_SECURITY}
+\`\`\`
+
+### TODOs/FIXMEs in source
+\`\`\`
+${TODOS_FOUND:-"(none found)"}
+\`\`\`
+
+### Recent plan files
+${PLAN_CONTENT:-"(none)"}
+
+### Current HANDOFF.md (for context — do not reproduce)
+$(echo "$HANDOFF_BASE" | tail -80)
+EXTEND_PROMPT_EOF
+
+log "Running claude --print for HANDOFF.md extension (this may take 30-60s)..."
+AI_SECTIONS="$(claude --print "$(cat "$EXTEND_PROMPT_FILE")")" \
+    || die "claude --print failed for HANDOFF.md extension"
+
+if [[ -z "$AI_SECTIONS" ]]; then
+    die "Claude returned empty output for HANDOFF.md extension"
+fi
+
+if ! echo "$AI_SECTIONS" | grep -q "REFRESH-AI:START"; then
+    die "Claude output missing <!-- REFRESH-AI:START --> marker"
+fi
+
+# Write: base content + AI sections
+{
+    echo "$HANDOFF_BASE"
+    echo ""
+    echo "$AI_SECTIONS"
+} > "$REPO/HANDOFF.md"
+
+log "HANDOFF.md extended with AI sections."
