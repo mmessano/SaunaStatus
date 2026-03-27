@@ -140,6 +140,12 @@ if ! echo "$UPDATED_CLAUDE" | grep -q "## Project Overview"; then
     die "Claude output does not look like a valid CLAUDE.md (missing '## Project Overview')"
 fi
 
+# Strip any preamble before the first # heading (claude sometimes prefixes with prose)
+UPDATED_CLAUDE="$(echo "$UPDATED_CLAUDE" | sed -n '/^# /,$p')"
+if [[ -z "$UPDATED_CLAUDE" ]]; then
+    die "Claude output has no top-level markdown heading — cannot write CLAUDE.md safely"
+fi
+
 echo "$UPDATED_CLAUDE" > "$REPO/CLAUDE.md"
 log "CLAUDE.md updated."
 
