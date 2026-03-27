@@ -138,22 +138,22 @@ To regenerate manually: `bash scripts/update-handoff.sh` (use `FORCE_BUILD=1` or
 
 ```
 src/
-├── main.cpp        ~874 lines  Thin orchestrator: global definitions, setup(), loop(), loadLittleFSConfig(), savePrefs(), OTA helpers
-├── globals.h        100 lines  Extern declarations for all globals defined in main.cpp; Arduino types in #ifdef ARDUINO guards
+├── main.cpp        ~886 lines  Thin orchestrator: global definitions, setup(), loop(), loadLittleFSConfig(), savePrefs(), OTA helpers
+├── globals.h        101 lines  Extern declarations for all globals defined in main.cpp; Arduino types in #ifdef ARDUINO guards
 ├── gpio_config.h     66 lines  GPIO pin assignments for LB-ESP32S3-N16R8; no Arduino deps — natively testable
 ├── sauna_logic.h    134 lines  Portable pure-C++: c2f/f2c/fmtVal, isSensorStale, SaunaConfig+merge, buildJsonFull (23-field JSON)
-├── auth_logic.h     352 lines  Portable pure-C++: 64-char token sessions, SHA-256 passwords, user store, authAttemptLogin()
-├── ota_logic.h      121 lines  Portable pure-C++: version parsing/compare, OtaManifest, boot-health, partial-download detection
+├── auth_logic.h     616 lines  Portable pure-C++: 64-char token sessions, PBKDF2 passwords (10000 iterations), rate limiting, user store, authAttemptLogin()
+├── ota_logic.h      188 lines  Portable pure-C++: version parsing/compare, OtaManifest, boot-health, partial-download detection
 ├── motor_logic.h     16 lines  Portable pure-C++: motorClampCW() — CW step clamping at max_steps ceiling
 ├── sensors.h         32 lines  stoveReading() inline (natively testable); readSensors()/checkOverheat() declared (Arduino-only)
 ├── sensors.cpp      103 lines  readSensors() — DHT21×2, MAX31865, INA260; checkOverheat() rising-edge state machine
-├── web.h             80 lines  buildJson() inline (natively testable); all handle*() HTTP and webSocketEvent() declared
-├── web.cpp          782 lines  HTTP route handlers, WebSocket event handler, buildJsonFull() calls
+├── web.h             82 lines  buildJson() inline (natively testable); all handle*() HTTP and webSocketEvent() declared
+├── web.cpp          937 lines  HTTP route handlers, WebSocket event handler, buildJsonFull() calls
 ├── mqtt.h            20 lines  mqttConnect/Callback/PublishState/PublishDiscovery declared (Arduino-only)
 ├── mqtt.cpp         195 lines  MQTT lifecycle, HA Discovery, sauna/state publish, control topic subscriptions
 ├── influx.h          21 lines  writeInflux() and logAccessEvent() declared (Arduino-only)
 ├── influx.cpp        59 lines  InfluxDB write (60s interval, NaN fields omitted), access event logging
-├── auth.h           195 lines  requireAdmin() Bearer check; auth HTTP handlers; NVS user-store I/O; security headers
+├── auth.h           206 lines  requireAdmin() Bearer check; auth HTTP handlers; NVS user-store I/O; security headers
 └── secrets.h         26 lines  WiFi/InfluxDB/MQTT credentials + AUTH_ADMIN_USER/PASS — NOT committed to git
 
 include/
@@ -170,7 +170,7 @@ include/
 
 **`src/web.h/.cpp`** — `buildJson()` inline in header (natively testable). All `handle*()` HTTP handlers and `webSocketEvent()`.
 
-**`src/auth_logic.h`** — Header-only pure-C++. Token sessions (64 chars, 1-hour TTL, 10 concurrent), SHA-256 passwords with constant-time compare, adapter-first login fallback.
+**`src/auth_logic.h`** — Header-only pure-C++. Token sessions (64 chars, 1-hour TTL, 10 concurrent), PBKDF2 passwords (10000 iterations) with constant-time compare, rate limiting (5 failures per 60 s window → 5-min lockout, 8 tracked slots), adapter-first login fallback.
 
 **`src/ota_logic.h`** — Header-only pure-C++. Version parsing/compare, manifest handling, boot-health rollback, partial-download detection.
 
@@ -210,17 +210,19 @@ Threshold: `STALE_THRESHOLD_MS = 10000UL`. Stale if `last_ok_ms == 0` (never rea
 All state-mutating HTTP routes require `Authorization: Bearer <token>`. See `docs/api-reference.md` for route details.
 
 - Emergency admin seeded from `secrets.h` on first boot if `u0_name` absent from NVS
-- Optional external adapter: `ADAPTER_OK` → skip NVS; `ADAPTER_REJECTED` → stop; `ADAPTER_ERROR` → fall through to NVS
+- Optional external adapter: `ADAPTER_OK` → skip NVS; `ADAPTER_REJECTED` → stop; `ADAPTER_ERROR` → fall through to NVS; adapter URL/key stored in NVS under `db_url`/`db_key`
 - Role from adapter stored verbatim — never default to a privilege level
 - `authAddSecurityHeaders()` sends `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff`
+- Rate limiting: `AUTH_RATE_LIMIT_MAX_FAILURES` (5) failures within `AUTH_RATE_LIMIT_WINDOW_MS` (60 s) triggers `AUTH_RATE_LIMIT_LOCKOUT_MS` (5 min) lockout; 8 tracked IP slots (`AUTH_RATE_LIMIT_SLOTS`)
+- Password constraints: 8–72 chars (`AUTH_MIN_PASS_LEN` / `AUTH_MAX_PASS_LEN`); usernames 1–32 chars (`AUTH_MIN_USER_LEN` / `AUTH_MAX_USER_LEN`); max 5 users (`AUTH_MAX_USERS`)
 
 ## OTA Update System
 
 → See `docs/api-reference.md` for `/ota/status` and `/ota/update` routes.
 
-Flow: fetch manifest → parse version → compare to `FIRMWARE_VERSION` → stream binary → reboot. Refuses downgrades and same-version re-flashes.
+Flow: fetch manifest → parse version → compare to `FIRMWARE_VERSION` → stream binary → reboot. Refuses downgrades and same-version re-flashes. `OTA_ALLOWED_HOSTS` (default `""` = any host allowed) can restrict which manifest hosts are accepted.
 
-Boot health: `otaCheckBootHealth()` increments `boot_fail` in NVS on every boot. `otaMarkBootSuccessful()` resets it after WiFi connects. Rollback if `boot_fail >= OTA_MAX_BOOT_FAILURES`. `FIRMWARE_VERSION` defined in `platformio.ini` — update for every release.
+Boot health: `otaCheckBootHealth()` increments `boot_fail` in NVS on every boot. `otaMarkBootSuccessful()` resets it after WiFi connects. Rollback if `boot_fail >= OTA_MAX_BOOT_FAILURES`. In-progress download tracked via NVS keys `ota_ip` (bool), `ota_exp` (expected bytes), `ota_wrt` (written bytes) — cleared on successful flash or rollback. `FIRMWARE_VERSION` defined in `platformio.ini` — update for every release.
 
 ## Web UI
 
@@ -256,19 +258,70 @@ Three environments:
 
 ## Unit Tests
 
-157 tests across 9 suites. Run with `pio test -e native`.
+<!-- NOTE: count below reflects pre-security-hardening baseline; run `pio test -e native` for current totals -->
+157+ tests across 9 suites. Run with `pio test -e native`.
 
 | Suite | Tests | What's covered |
 |---|---|---|
 | `test/test_sensor/` | 8 | `c2f`/`f2c`/`fmtVal`; NaN→null in JSON per sensor |
 | `test/test_config/` | 9 | 3-tier merge logic; range validation; NVS-wins-over-fleet |
 | `test/test_websocket/` | 12 | `buildJsonFull()` output; stale detection edge cases |
-| `test/test_auth/` | 35 | Tokens, passwords, user store, login fallback, adapter orchestration |
+| `test/test_auth/` | 35+ | Tokens, passwords, user store, login fallback, adapter orchestration, PBKDF2, rate limiting |
 | `test/test_ota/` | 17 | Version parsing/comparison, manifest, rollback, partial download |
 | `test/test_sensor_module/` | 5 | `stoveReading()` fallback to ceiling/bench average |
 | `test/test_web_module/` | 6 | `buildJson()` struct assembly; INA260 absent path |
 | `test/test_motor_logic/` | 8 | `motorClampCW()` clamping at max; CCW floor at zero |
 | `test/test_gpio_config/` | 21 | Pin values, adjacency, uniqueness, restricted pins, coil order |
+
+## Undocumented Items
+
+Items found in the codebase that are not fully documented in this file. Verify and expand `docs/` as needed.
+
+### API Routes (registered in `src/main.cpp` but not mentioned in CLAUDE.md)
+
+- [ ] `GET /log` — `handleLog`
+- [ ] `GET /delete/status` — `handleDeleteStatus`
+- [ ] `GET /delete/control` — `handleDeleteControl`
+- [ ] `GET /history` — `handleHistory`
+- [ ] `GET|POST /setpoint` — `handleSetpoint`
+- [ ] `GET|POST /pid` — `handlePidToggle`
+- [ ] `GET|POST /motor` — `handleMotorCmd`
+- [ ] `GET /config/get` — `handleConfigGet`
+- [ ] `POST /auth/logout` — `handleAuthLogout`
+- [ ] `GET /auth/status` — `handleAuthStatus`
+- [ ] `GET /users` — `handleUsersGet`
+- [ ] `POST /users` — `handleUsersCreate`
+- [ ] `DELETE /users` — `handleUsersDelete`
+- [ ] `PUT /users` — `handleUsersChangePassword`
+
+### NVS Keys (in code but not in any CLAUDE.md table)
+
+- [ ] `csp` — ceiling setpoint (°C float)
+- [ ] `bsp` — bench setpoint (°C float)
+- [ ] `cen` — ceiling PID enabled (bool)
+- [ ] `ben` — bench PID enabled (bool)
+- [ ] `ota_ip` — OTA download in progress (bool)
+- [ ] `ota_exp` — OTA expected byte count (uint)
+- [ ] `ota_wrt` — OTA bytes written so far (uint)
+- [ ] `db_url` — external auth adapter URL (string, ≤128)
+- [ ] `db_key` — external auth adapter API key (string, ≤64)
+- [ ] `u<N>_name` / `u<N>_hash` / `u<N>_salt` / `u<N>_role` / `u<N>_iter` — per-user NVS keys (N = 0..AUTH_MAX_USERS-1)
+
+### `#define` Constants (in `src/*.h` but not in CLAUDE.md)
+
+- [ ] `AUTH_MAX_USERS 5` — maximum stored users
+- [ ] `AUTH_MIN_PASS_LEN 8` / `AUTH_MAX_PASS_LEN 72` — password length bounds
+- [ ] `AUTH_MIN_USER_LEN 1` / `AUTH_MAX_USER_LEN 32` — username length bounds
+- [ ] `AUTH_PBKDF2_ITERATIONS 10000` — PBKDF2 iteration count
+- [ ] `AUTH_RATE_LIMIT_MAX_FAILURES 5` — failures before lockout
+- [ ] `AUTH_RATE_LIMIT_WINDOW_MS 60000UL` — rate-limit counting window
+- [ ] `AUTH_RATE_LIMIT_LOCKOUT_MS 300000UL` — lockout duration
+- [ ] `AUTH_RATE_LIMIT_SLOTS 8` — number of tracked IP slots
+- [ ] `OTA_ALLOWED_HOSTS ""` — comma-separated allowed manifest hosts (empty = any)
+
+### Unit Test Count
+
+- [ ] Total test count shown as 157 but is higher after security hardening (PBKDF2, rate-limiting tests added to `test/test_auth/`). Run `pio test -e native` and update the table above.
 
 ## Common Pitfalls
 
