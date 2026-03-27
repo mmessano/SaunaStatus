@@ -157,10 +157,11 @@ TODOS_FOUND="$(grep -rn --include='*.cpp' --include='*.h' \
     -E '\b(TODO|FIXME|HACK|XXX)\b' "$REPO/src" "$REPO/test" 2>/dev/null | head -30 || true)"
 RECENT_PLANS="$(ls -t "$REPO/docs/superpowers/plans/"*.md 2>/dev/null | head -3 || true)"
 PLAN_CONTENT=""
-for f in $RECENT_PLANS; do
+while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
     PLAN_CONTENT+="### $(basename "$f")"$'\n'
     PLAN_CONTENT+="$(tail -50 "$f")"$'\n\n'
-done
+done <<< "$RECENT_PLANS"
 
 EXTEND_PROMPT_FILE="$TMPDIR_REFRESH/extend_prompt.txt"
 cat > "$EXTEND_PROMPT_FILE" <<EXTEND_PROMPT_EOF
