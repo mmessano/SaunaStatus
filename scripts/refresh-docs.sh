@@ -338,7 +338,7 @@ if [[ -z "$SKILLS_OUTPUT" ]]; then
     die "Claude returned empty output for skill extraction"
 fi
 
-if echo "$SKILLS_OUTPUT" | grep -q "^NO_NEW_SKILLS"; then
+if echo "$SKILLS_OUTPUT" | grep -qx "NO_NEW_SKILLS"; then
     log "No new skills to extract."
 else
     log "Writing skill files..."
