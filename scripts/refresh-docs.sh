@@ -62,6 +62,7 @@ NVS_KEYS="$(grep -rn 'prefs\.put\|prefs\.get\|prefs\.isKey' \
     "$REPO/src/main.cpp" "$REPO/src/web.cpp" "$REPO/src/auth.h" 2>/dev/null | head -80 || true)"
 DEFINES="$(grep -rhn '#define\|constexpr' "$REPO/src/"*.h 2>/dev/null \
     | grep -v '^\s*//' | grep -v '#ifndef\|#ifdef\|#endif' | head -80 || true)"
+[[ -z "$DEFINES" ]] && warn "No #define/constexpr found in src/*.h — audit may be incomplete"
 CURRENT_CLAUDE="$(cat "$REPO/CLAUDE.md")"
 
 AUDIT_PROMPT_FILE="$TMPDIR_REFRESH/audit_prompt.txt"
@@ -106,7 +107,7 @@ Output ONLY the complete updated CLAUDE.md content — no explanation, no markdo
 ${LINE_COUNTS}
 \`\`\`
 
-### Actual API route registrations (src/web.cpp server.on calls)
+### Actual API route registrations (src/main.cpp server.on calls)
 \`\`\`
 ${API_ROUTES}
 \`\`\`
