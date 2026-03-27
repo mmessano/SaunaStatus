@@ -40,3 +40,12 @@ if ! command -v claude &>/dev/null; then
 fi
 
 cd "$REPO"
+
+# ── Step 1: base HANDOFF.md regeneration ─────────────────────────────────────
+
+step 1 "Base HANDOFF.md regeneration (update-handoff.sh)"
+
+SKIP_BUILD=1 bash "$REPO/scripts/update-handoff.sh" \
+    || die "update-handoff.sh failed — fix it before running refresh-docs.sh"
+
+log "HANDOFF.md regenerated."
