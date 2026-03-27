@@ -57,7 +57,7 @@ step 2 "CLAUDE.md full audit (claude --print)"
 # Collect codebase facts
 log "Collecting codebase facts..."
 LINE_COUNTS="$(wc -l "$REPO"/src/*.cpp "$REPO"/src/*.h 2>/dev/null | sort -rn)"
-API_ROUTES="$(grep -n 'server\.on(' "$REPO/src/web.cpp" 2>/dev/null | head -60 || true)"
+API_ROUTES="$(grep -n 'server\.on(' "$REPO/src/main.cpp" 2>/dev/null | head -60 || true)"
 NVS_KEYS="$(grep -rn 'prefs\.put\|prefs\.get\|prefs\.isKey' \
     "$REPO/src/main.cpp" "$REPO/src/web.cpp" "$REPO/src/auth.h" 2>/dev/null | head -80 || true)"
 DEFINES="$(grep -rhn '#define\|constexpr' "$REPO/src/"*.h 2>/dev/null \
