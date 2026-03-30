@@ -20,6 +20,12 @@ This file provides behavioral guidance to Claude Code when working with this rep
 - KiCad MCP Python package is **`kicad-skip`** (NOT `skip-python`); module name is `skip`
 - All config changes require a full Claude Code restart — no hot-reload
 
+## Automated Agents
+
+When running automated agent tasks (e.g. Paperclip heartbeats):
+- Always check that `PAPERCLIP_API_KEY` is set and non-empty before starting any heartbeat or delegated task. An empty key will silently fail or waste an entire session.
+- If Bash tool permissions block external API calls, flag the blockage immediately and stop — do not retry the same call. Retrying without permission will not unblock it.
+
 ## Settings File Conventions
 
 When writing permission rules or any paths in `.claude/settings.local.json` or `.claude/settings.json`, always use `~/` for paths under the home directory. Never use `/home/<username>/` or any other absolute path containing a hardcoded username.
@@ -89,6 +95,14 @@ When editing JSON files (especially `settings.json`, `.mcp.json`, `config.json`)
 | Functional change | `pio test -e native` — run unit tests to confirm behavior |
 
 If validation fails, fix the issue before moving on. Do not leave a broken state and continue with other changes.
+
+## ESP32 Development
+
+When making changes to sensor or hardware code, always verify stale state cleanup: ensure disconnected or failed devices do not retain old values in memory or in the UI. Apply Rule 1 from `.claude/rules/sensor-patterns.md` — clear to `NAN` on failure, never leave the previous reading in place.
+
+## Documentation
+
+When generating `HANDOFF.md` files, run a formatting check pass before completing — look for mangled markdown headers, broken lists, and inconsistent indentation. The post-commit hook regenerates this file automatically, but manually generated versions must be verified.
 
 ## Testing
 
@@ -321,7 +335,7 @@ Items found in the codebase that are not fully documented in this file. Verify a
 
 ### Unit Test Count
 
-- [ ] Total test count shown as 157 but is higher after security hardening (PBKDF2, rate-limiting tests added to `test/test_auth/`). Run `pio test -e native` and update the table above.
+- [ ] Total test count is **281** as of 2026-03-29 (200 pre-existing + 83 new from parallel TDD run: motor_utils 24, overheat 19, config_json 15, version_utils 25). Update the suite table above to reflect the 4 new suites.
 
 ## Common Pitfalls
 

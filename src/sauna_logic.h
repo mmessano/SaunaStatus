@@ -54,6 +54,13 @@ inline void mergeConfigLayer(SaunaConfig &cfg, const ConfigLayer &layer) {
     if (layer.has_bench_en)   cfg.bench_pid_en   = layer.bench_pid_en;
 }
 
+inline void buildConfigJson(const SaunaConfig& cfg, char* buf, size_t len) {
+    snprintf(buf, len,
+             "{\"csp_f\":%.1f,\"bsp_f\":%.1f,\"cen\":%d,\"ben\":%d}",
+             cfg.ceiling_setpoint_f, cfg.bench_setpoint_f,
+             (int)cfg.ceiling_pid_en, (int)cfg.bench_pid_en);
+}
+
 struct SensorValues {
     float ceiling_temp    = _snan;
     float ceiling_hum     = _snan;
@@ -86,6 +93,46 @@ struct PIDState {
     float Benchpoint      = 0.0f;  // degrees C
     bool  overheat_alarm  = false;
 };
+
+struct OverheatGuard {
+    bool triggered = false;
+};
+
+// Hysteresis below trigger threshold required before alarm clears.
+// Prevents rapid re-triggering as temps hover near the limit.
+#ifndef OVERHEAT_CLEAR_HYSTERESIS_C
+#define OVERHEAT_CLEAR_HYSTERESIS_C 10.0f
+#endif
+
+// Overheat state machine (portable pure-C++, no Arduino deps).
+// Triggers when ceiling_c >= threshold_c OR bench_c >= threshold_c (NaN ignored for trigger).
+// Clears only when BOTH values are valid (not NaN) AND both drop below
+//   (threshold_c - OVERHEAT_CLEAR_HYSTERESIS_C).
+// If both inputs are NaN, retains the current triggered state unchanged.
+// Returns guard.triggered after the update.
+inline bool tickOverheat(OverheatGuard& guard,
+                         float ceiling_c, float bench_c,
+                         float threshold_c)
+{
+    bool c_nan = std::isnan(ceiling_c);
+    bool b_nan = std::isnan(bench_c);
+
+    bool c_hot = !c_nan && (ceiling_c >= threshold_c);
+    bool b_hot = !b_nan && (bench_c   >= threshold_c);
+
+    if (c_hot || b_hot) {
+        guard.triggered = true;
+    } else if (!c_nan && !b_nan) {
+        // Both valid — clear only when both drop below the hysteresis band
+        float clear_thresh = threshold_c - OVERHEAT_CLEAR_HYSTERESIS_C;
+        if (ceiling_c < clear_thresh && bench_c < clear_thresh) {
+            guard.triggered = false;
+        }
+    }
+    // Otherwise: at least one NaN, nothing hot — retain current state
+
+    return guard.triggered;
+}
 
 // Build WebSocket JSON. Stale readings become null; cst/bst flags added.
 // Pass now_ms=0 with stale_threshold_ms=0 to disable stale detection.

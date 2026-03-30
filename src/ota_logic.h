@@ -52,6 +52,30 @@ inline bool isUpdateAvailable(const FirmwareVersion &current,
     return compareVersion(manifest, current) > 0;
 }
 
+// Writes "major.minor.patch" into buf. Writes "" (empty string) if !v.valid.
+inline void formatVersion(const FirmwareVersion &v, char *buf, size_t len) {
+    if (!v.valid) {
+        if (len > 0) buf[0] = '\0';
+    } else {
+        snprintf(buf, len, "%d.%d.%d", v.major, v.minor, v.patch);
+    }
+}
+
+// Returns true if manifest is strictly older than current (a downgrade).
+// Returns false if either version is invalid.
+inline bool isDowngrade(const FirmwareVersion &current,
+                        const FirmwareVersion &manifest) {
+    if (!current.valid || !manifest.valid) return false;
+    return compareVersion(manifest, current) < 0;
+}
+
+// Returns true if both versions are valid and equal.
+// Returns false if either (or both) are invalid.
+inline bool isSameVersion(const FirmwareVersion &a, const FirmwareVersion &b) {
+    if (!a.valid || !b.valid) return false;
+    return compareVersion(a, b) == 0;
+}
+
 // =============================================================================
 // OTA manifest — parsed from JSON served by the update server
 // =============================================================================
