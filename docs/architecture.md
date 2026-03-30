@@ -101,6 +101,24 @@ Three environments:
 
 **The LittleFS partition must be named `spiffs`.** `LittleFS.begin()` searches for `spiffs` by default — not `littlefs`. This has burned us twice.
 
+## OTA Update System
+
+→ See `docs/api-reference.md` for `/ota/status` and `/ota/update` route details.
+
+Flow: fetch manifest → parse version → compare to `FIRMWARE_VERSION` → stream binary → reboot. Refuses downgrades and same-version re-flashes. `OTA_ALLOWED_HOSTS` (default `""` = any host) restricts which manifest hosts are accepted.
+
+Boot health: `otaCheckBootHealth()` increments `boot_fail` in NVS on every boot. `otaMarkBootSuccessful()` resets it after WiFi connects. Rolls back if `boot_fail >= OTA_MAX_BOOT_FAILURES`. In-progress download tracked via NVS keys `ota_ip` (bool), `ota_exp` (expected bytes), `ota_wrt` (written bytes) — all cleared on successful flash or rollback. `FIRMWARE_VERSION` is defined in `platformio.ini`.
+
+## Authentication System
+
+→ See `docs/api-reference.md` for route details.
+
+- Emergency admin seeded from `secrets.h` on first boot if `u0_name` absent from NVS
+- External adapter: `ADAPTER_OK` → skip NVS; `ADAPTER_REJECTED` → stop; `ADAPTER_ERROR` → fall through to NVS; URL/key stored in NVS under `db_url`/`db_key`
+- `authAddSecurityHeaders()` sends `X-Frame-Options: DENY` and `X-Content-Type-Options: nosniff`
+- Rate limiting: `AUTH_RATE_LIMIT_MAX_FAILURES` failures within `AUTH_RATE_LIMIT_WINDOW_MS` → `AUTH_RATE_LIMIT_LOCKOUT_MS` lockout; `AUTH_RATE_LIMIT_SLOTS` tracked IP slots (see `docs/config-reference.md` for values)
+- Password: `AUTH_MIN_PASS_LEN`–`AUTH_MAX_PASS_LEN` chars; usernames `AUTH_MIN_USER_LEN`–`AUTH_MAX_USER_LEN` chars; max `AUTH_MAX_USERS` users
+
 ## Alternative Firmware
 
 `sauna_esphome.yaml` — ESPHome configuration. Lacks native InfluxDB support and runtime motor calibration. Do not merge concerns between the two firmware approaches.
