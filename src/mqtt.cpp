@@ -15,6 +15,13 @@
 #define PID_OUTPUT_MAX 255
 #endif
 
+// MQTT topic names — centralised to avoid typos across subscribe/publish/discovery
+#define MQTT_TOPIC_STATE          "sauna/state"
+#define MQTT_TOPIC_CEILING_PID    "sauna/ceiling_pid/set"
+#define MQTT_TOPIC_BENCH_PID      "sauna/bench_pid/set"
+#define MQTT_TOPIC_CEILING_SP     "sauna/ceiling_setpoint/set"
+#define MQTT_TOPIC_BENCH_SP       "sauna/bench_setpoint/set"
+
 #ifdef ARDUINO
 
 
@@ -26,17 +33,17 @@ void mqttCallback(char *topic, byte *payload, unsigned int len)
   memcpy(msg, payload, len);
   msg[len] = '\0';
 
-  if (strcmp(topic, "sauna/ceiling_pid/set") == 0)
+  if (strcmp(topic, MQTT_TOPIC_CEILING_PID) == 0)
   {
     ceiling_pid_en = (strcmp(msg, "ON") == 0);
     g_needs_save = true;  // deferred: savePrefs() called from loop(), not callback
   }
-  else if (strcmp(topic, "sauna/bench_pid/set") == 0)
+  else if (strcmp(topic, MQTT_TOPIC_BENCH_PID) == 0)
   {
     bench_pid_en = (strcmp(msg, "ON") == 0);
     g_needs_save = true;
   }
-  else if (strcmp(topic, "sauna/ceiling_setpoint/set") == 0)
+  else if (strcmp(topic, MQTT_TOPIC_CEILING_SP) == 0)
   {
     float f = atof(msg);
     if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
@@ -45,7 +52,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int len)
       g_needs_save = true;
     }
   }
-  else if (strcmp(topic, "sauna/bench_setpoint/set") == 0)
+  else if (strcmp(topic, MQTT_TOPIC_BENCH_SP) == 0)
   {
     float f = atof(msg);
     if (f >= SETPOINT_MIN_F && f <= SETPOINT_MAX_F)
@@ -88,7 +95,7 @@ void mqttPublishState()
            c2f(Ceilingpoint), c2f(Benchpoint),
            pv, pc, pw);
 
-  mqttClient.publish("sauna/state", buf);
+  mqttClient.publish(MQTT_TOPIC_STATE, buf);
 }
 
 void mqttPublishDiscovery()
@@ -99,47 +106,47 @@ void mqttPublishDiscovery()
   char buf[512];
 
 // Sensor with device_class
-#define PUB_S(id, nm, vt, unit, dc)                                    \
-  snprintf(buf, sizeof(buf),                                           \
-           "{\"name\":\"%s\",\"state_topic\":\"sauna/state\","         \
-           "\"value_template\":\"%s\",\"unit_of_measurement\":\"%s\"," \
-           "\"device_class\":\"%s\",\"state_class\":\"measurement\","  \
-           "\"unique_id\":\"sauna_" id "\",%s}",                       \
-           nm, vt, unit, dc, dev);                                     \
+#define PUB_S(id, nm, vt, unit, dc)                                                    \
+  snprintf(buf, sizeof(buf),                                                           \
+           "{\"name\":\"%s\",\"state_topic\":\"" MQTT_TOPIC_STATE "\","                \
+           "\"value_template\":\"%s\",\"unit_of_measurement\":\"%s\","                 \
+           "\"device_class\":\"%s\",\"state_class\":\"measurement\","                  \
+           "\"unique_id\":\"sauna_" id "\",%s}",                                       \
+           nm, vt, unit, dc, dev);                                                     \
   if (!mqttClient.publish("homeassistant/sensor/sauna_esp32/" id "/config", buf, true)) \
     Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
 // Sensor without device_class
-#define PUB_SN(id, nm, vt, unit)                                       \
-  snprintf(buf, sizeof(buf),                                           \
-           "{\"name\":\"%s\",\"state_topic\":\"sauna/state\","         \
-           "\"value_template\":\"%s\",\"unit_of_measurement\":\"%s\"," \
-           "\"state_class\":\"measurement\","                          \
-           "\"unique_id\":\"sauna_" id "\",%s}",                       \
-           nm, vt, unit, dev);                                         \
+#define PUB_SN(id, nm, vt, unit)                                                       \
+  snprintf(buf, sizeof(buf),                                                           \
+           "{\"name\":\"%s\",\"state_topic\":\"" MQTT_TOPIC_STATE "\","                \
+           "\"value_template\":\"%s\",\"unit_of_measurement\":\"%s\","                 \
+           "\"state_class\":\"measurement\","                                          \
+           "\"unique_id\":\"sauna_" id "\",%s}",                                       \
+           nm, vt, unit, dev);                                                         \
   if (!mqttClient.publish("homeassistant/sensor/sauna_esp32/" id "/config", buf, true)) \
     Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
 // Switch
-#define PUB_SW(id, nm, vt, cmd)                                  \
-  snprintf(buf, sizeof(buf),                                     \
-           "{\"name\":\"%s\",\"state_topic\":\"sauna/state\","   \
-           "\"value_template\":\"%s\",\"command_topic\":\"%s\"," \
-           "\"unique_id\":\"sauna_" id "\",%s}",                 \
-           nm, vt, cmd, dev);                                    \
+#define PUB_SW(id, nm, vt, cmd)                                                  \
+  snprintf(buf, sizeof(buf),                                                     \
+           "{\"name\":\"%s\",\"state_topic\":\"" MQTT_TOPIC_STATE "\","          \
+           "\"value_template\":\"%s\",\"command_topic\":\"%s\","                 \
+           "\"unique_id\":\"sauna_" id "\",%s}",                                 \
+           nm, vt, cmd, dev);                                                    \
   if (!mqttClient.publish("homeassistant/switch/sauna_esp32/" id "/config", buf, true)) \
     Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
 // Number (setpoint)
-#define PUB_N(id, nm, vt, cmd)                                   \
-  snprintf(buf, sizeof(buf),                                     \
-           "{\"name\":\"%s\",\"state_topic\":\"sauna/state\","   \
-           "\"value_template\":\"%s\",\"command_topic\":\"%s\"," \
-           "\"min\":32,\"max\":250,\"step\":1,"                  \
-           "\"unit_of_measurement\":\"\xc2\xb0"                  \
-           "F\","                                                \
-           "\"unique_id\":\"sauna_" id "\",%s}",                 \
-           nm, vt, cmd, dev);                                    \
+#define PUB_N(id, nm, vt, cmd)                                                   \
+  snprintf(buf, sizeof(buf),                                                     \
+           "{\"name\":\"%s\",\"state_topic\":\"" MQTT_TOPIC_STATE "\","          \
+           "\"value_template\":\"%s\",\"command_topic\":\"%s\","                 \
+           "\"min\":32,\"max\":250,\"step\":1,"                                  \
+           "\"unit_of_measurement\":\"\xc2\xb0"                                  \
+           "F\","                                                                \
+           "\"unique_id\":\"sauna_" id "\",%s}",                                 \
+           nm, vt, cmd, dev);                                                    \
   if (!mqttClient.publish("homeassistant/number/sauna_esp32/" id "/config", buf, true)) \
     Serial.println("MQTT discovery publish failed for " id " (buffer too small?)");
 
@@ -158,13 +165,13 @@ void mqttPublishDiscovery()
   PUB_SN("inflow_pos", "Inflow Position", "{{ value_json.inflow_pos }}", "%")
   PUB_SN("ceiling_pid_out", "Ceiling PID Output", "{{ value_json.ceiling_pid_out | round(1) }}", "%")
   PUB_SN("bench_pid_out", "Bench PID Output", "{{ value_json.bench_pid_out | round(1) }}", "%")
-  PUB_SW("ceiling_pid", "Ceiling PID", "{{ value_json.ceiling_pid_en }}", "sauna/ceiling_pid/set")
-  PUB_SW("bench_pid", "Bench PID", "{{ value_json.bench_pid_en }}", "sauna/bench_pid/set")
+  PUB_SW("ceiling_pid", "Ceiling PID", "{{ value_json.ceiling_pid_en }}", MQTT_TOPIC_CEILING_PID)
+  PUB_SW("bench_pid", "Bench PID", "{{ value_json.bench_pid_en }}", MQTT_TOPIC_BENCH_PID)
   PUB_S("bus_voltage", "Bus Voltage", "{{ value_json.bus_voltage | round(2) }}", "V", "voltage")
   PUB_SN("current_mA", "Current", "{{ value_json.current_mA | round(1) }}", "mA")
   PUB_SN("power_mW", "Power", "{{ value_json.power_mW | round(1) }}", "mW")
-  PUB_N("ceiling_setpoint", "Ceiling Setpoint", "{{ value_json.ceiling_setpoint | round(0) | int }}", "sauna/ceiling_setpoint/set")
-  PUB_N("bench_setpoint", "Bench Setpoint", "{{ value_json.bench_setpoint | round(0) | int }}", "sauna/bench_setpoint/set")
+  PUB_N("ceiling_setpoint", "Ceiling Setpoint", "{{ value_json.ceiling_setpoint | round(0) | int }}", MQTT_TOPIC_CEILING_SP)
+  PUB_N("bench_setpoint", "Bench Setpoint", "{{ value_json.bench_setpoint | round(0) | int }}", MQTT_TOPIC_BENCH_SP)
 
 #undef PUB_S
 #undef PUB_SN
@@ -184,10 +191,10 @@ void mqttConnect()
   {
     Serial.println(" connected");
     mqttPublishDiscovery();
-    mqttClient.subscribe("sauna/ceiling_pid/set");
-    mqttClient.subscribe("sauna/bench_pid/set");
-    mqttClient.subscribe("sauna/ceiling_setpoint/set");
-    mqttClient.subscribe("sauna/bench_setpoint/set");
+    mqttClient.subscribe(MQTT_TOPIC_CEILING_PID);
+    mqttClient.subscribe(MQTT_TOPIC_BENCH_PID);
+    mqttClient.subscribe(MQTT_TOPIC_CEILING_SP);
+    mqttClient.subscribe(MQTT_TOPIC_BENCH_SP);
   }
   else
   {
