@@ -20,6 +20,10 @@
 #ifndef VENT_STEPS
 #define VENT_STEPS 1024
 #endif
+// Default step count for /motor?cmd=cw|ccw when ?steps= param is absent or out of range
+#ifndef MOTOR_CMD_DEFAULT_STEPS
+#define MOTOR_CMD_DEFAULT_STEPS 64
+#endif
 #ifndef SETPOINT_MIN_F
 #define SETPOINT_MIN_F 32.0f
 #endif
@@ -101,9 +105,9 @@ void handleMotorCmd()
   if (!requireAdmin()) return;
   String motor = server.arg("motor");
   String cmd = server.arg("cmd");
-  int steps = server.hasArg("steps") ? server.arg("steps").toInt() : 64;
+  int steps = server.hasArg("steps") ? server.arg("steps").toInt() : MOTOR_CMD_DEFAULT_STEPS;
   if (steps < 1 || steps > VENT_STEPS * 4)
-    steps = 64;
+    steps = MOTOR_CMD_DEFAULT_STEPS;
 
   CheapStepper *m = nullptr;
   int *tgt = nullptr;
