@@ -506,8 +506,8 @@ void setup()
   {
     IPAddress local_IP;
     if (!local_IP.fromString(g_static_ip_str)) {
-      Serial.printf("Config: invalid static_ip \"%s\", using 192.168.1.200\n", g_static_ip_str);
-      local_IP.fromString("192.168.1.200");
+      Serial.printf("Config: invalid static_ip \"%s\", using " DEFAULT_STATIC_IP "\n", g_static_ip_str);
+      local_IP.fromString(DEFAULT_STATIC_IP);
     }
     WiFi.config(local_IP, gateway, subnet, primaryDNS);
   }
