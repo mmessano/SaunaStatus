@@ -11,6 +11,9 @@
 #ifndef SETPOINT_MAX_F
 #define SETPOINT_MAX_F 300.0f
 #endif
+#ifndef PID_OUTPUT_MAX
+#define PID_OUTPUT_MAX 255
+#endif
 
 #ifdef ARDUINO
 
@@ -78,8 +81,8 @@ void mqttPublishState()
            "\"bus_voltage\":%s,\"current_mA\":%s,\"power_mW\":%s}",
            ct, ch, bt, bh, st,
            outflow_pos, inflow_pos,
-           ceiling_output / 255.0f * 100.0f,
-           bench_output / 255.0f * 100.0f,
+           ceiling_output / (float)PID_OUTPUT_MAX * 100.0f,
+           bench_output / (float)PID_OUTPUT_MAX * 100.0f,
            ceiling_pid_en ? "ON" : "OFF",
            bench_pid_en ? "ON" : "OFF",
            c2f(Ceilingpoint), c2f(Benchpoint),

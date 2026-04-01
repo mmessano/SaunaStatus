@@ -196,6 +196,14 @@ PubSubClient mqttClient(mqttWifi);
 #define PID_MIN_STEP_DELTA 5
 #endif
 
+// QuickPID output range (0–255 maps to 0–max_steps for motor control)
+#ifndef PID_OUTPUT_MIN
+#define PID_OUTPUT_MIN 0
+#endif
+#ifndef PID_OUTPUT_MAX
+#define PID_OUTPUT_MAX 255
+#endif
+
 // WebSocket broadcast JSON buffer size; override with -DWS_JSON_BUF_SIZE=xxx
 // Worst-case buildJsonFull output ≈ 300 chars; 384 gives 80+ bytes of headroom.
 // Must match the definition in web.cpp — both use the same JSON builder.
@@ -581,9 +589,9 @@ void setup()
   inflow.setRpm(MOTOR_RPM);
 
   CeilingPID.SetMode(QuickPID::Control::automatic);
-  CeilingPID.SetOutputLimits(0, 255);
+  CeilingPID.SetOutputLimits(PID_OUTPUT_MIN, PID_OUTPUT_MAX);
   BenchPID.SetMode(QuickPID::Control::automatic);
-  BenchPID.SetOutputLimits(0, 255);
+  BenchPID.SetOutputLimits(PID_OUTPUT_MIN, PID_OUTPUT_MAX);
 
   // Auth: load config, init session store, load users, seed emergency admin
   authNvsLoadConfig(g_db_url, g_db_key);
@@ -691,7 +699,7 @@ void loop()
                             c_cons ? c_consKi : c_aggKi,
                             c_cons ? c_consKd : c_aggKd);
       CeilingPID.Compute();
-      int c_new = (int)(ceiling_output / 255.0f * outflow_max_steps);
+      int c_new = (int)(ceiling_output / (float)PID_OUTPUT_MAX * outflow_max_steps);
       int c_delta = c_new - outflow_target;
       if (abs(c_delta) >= PID_MIN_STEP_DELTA)
       {
@@ -740,7 +748,7 @@ void loop()
                           b_cons ? b_consKi : b_aggKi,
                           b_cons ? b_consKd : b_aggKd);
       BenchPID.Compute();
-      int b_new = (int)(bench_output / 255.0f * inflow_max_steps);
+      int b_new = (int)(bench_output / (float)PID_OUTPUT_MAX * inflow_max_steps);
       int b_delta = b_new - inflow_target;
       if (abs(b_delta) >= PID_MIN_STEP_DELTA)
       {
