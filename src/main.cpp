@@ -281,15 +281,37 @@ bool overheat_alarm = false;
 #define PID_CONSERVATIVE_THRESHOLD_C 10.0f
 #endif
 
+// PID tuning constants — aggressive mode (used when error > PID_CONSERVATIVE_THRESHOLD_C)
+#ifndef PID_AGG_KP
+#define PID_AGG_KP 4.0f
+#endif
+#ifndef PID_AGG_KI
+#define PID_AGG_KI 0.2f
+#endif
+#ifndef PID_AGG_KD
+#define PID_AGG_KD 1.0f
+#endif
+
+// PID tuning constants — conservative mode (used when error < PID_CONSERVATIVE_THRESHOLD_C)
+#ifndef PID_CONS_KP
+#define PID_CONS_KP 1.0f
+#endif
+#ifndef PID_CONS_KI
+#define PID_CONS_KI 0.05f
+#endif
+#ifndef PID_CONS_KD
+#define PID_CONS_KD 0.25f
+#endif
+
 float Ceilingpoint = (DEFAULT_CEILING_SP_F - 32.0f) * 5.0f / 9.0f;
 float ceiling_output = 0;
-float c_aggKp = 4, c_aggKi = 0.2, c_aggKd = 1;
-float c_consKp = 1, c_consKi = 0.05, c_consKd = 0.25;
+float c_aggKp = PID_AGG_KP, c_aggKi = PID_AGG_KI, c_aggKd = PID_AGG_KD;
+float c_consKp = PID_CONS_KP, c_consKi = PID_CONS_KI, c_consKd = PID_CONS_KD;
 
 float Benchpoint = (DEFAULT_BENCH_SP_F - 32.0f) * 5.0f / 9.0f;
 float bench_output = 0;
-float b_aggKp = 4, b_aggKi = 0.2, b_aggKd = 1;
-float b_consKp = 1, b_consKi = 0.05, b_consKd = 0.25;
+float b_aggKp = PID_AGG_KP, b_aggKi = PID_AGG_KI, b_aggKd = PID_AGG_KD;
+float b_consKp = PID_CONS_KP, b_consKi = PID_CONS_KI, b_consKd = PID_CONS_KD;
 
 // Load fleet-level defaults from /config.json in LittleFS.
 // Setpoints use °F (consistent with the HTTP/MQTT API); PID enable flags are optional.
