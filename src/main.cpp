@@ -160,13 +160,20 @@ const char *password = WIFI_PASSWORD;
 #define DEFAULT_SENSOR_READ_INTERVAL_MS 2000UL
 #endif
 
+#ifndef HTTP_PORT
+#define HTTP_PORT 80
+#endif
+#ifndef WEBSOCKET_PORT
+#define WEBSOCKET_PORT 81
+#endif
+
 // Static IP configuration (local_IP is computed at runtime from g_static_ip_str)
 IPAddress gateway(WIFI_GATEWAY_IP);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(WIFI_DNS_IP);
 
-WebServer server(80);
-WebSocketsServer webSocket(81);
+WebServer server(HTTP_PORT);
+WebSocketsServer webSocket(WEBSOCKET_PORT);
 Preferences prefs;
 WiFiClient mqttWifi;
 PubSubClient mqttClient(mqttWifi);
@@ -656,11 +663,11 @@ void setup()
   const char *authHdrs[] = {"Authorization"};
   server.collectHeaders(authHdrs, 1);
   server.begin();
-  Serial.println("HTTP server started on port 80");
+  Serial.printf("HTTP server started on port %d\n", HTTP_PORT);
 
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  Serial.println("WebSocket server started on port 81");
+  Serial.printf("WebSocket server started on port %d\n", WEBSOCKET_PORT);
 
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
