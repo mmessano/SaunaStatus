@@ -221,6 +221,12 @@ PubSubClient mqttClient(mqttWifi);
 #define NTP_SERVER_LOCAL "192.168.1.100"
 #endif
 
+// NTP sync validation: tm_year is years since 1900; 120 = year 2020.
+// If time is still at or before this threshold after sync, NTP failed.
+#ifndef NTP_YEAR_THRESHOLD
+#define NTP_YEAR_THRESHOLD 120
+#endif
+
 // Runtime-configurable intervals and identity (Tier 3: NVS overrides build-flag defaults)
 // These can be changed at runtime via the /config portal without a reboot.
 unsigned long g_sensor_read_interval_ms = DEFAULT_SENSOR_READ_INTERVAL_MS;
@@ -548,7 +554,7 @@ void setup()
     time_t t = time(nullptr);
     struct tm chk;
     gmtime_r(&t, &chk);
-    if (chk.tm_year > 120) break; // tm_year is years since 1900; >120 means >2020
+    if (chk.tm_year > NTP_YEAR_THRESHOLD) break;
   }
 
   time_t now = time(nullptr);
@@ -557,7 +563,7 @@ void setup()
   localtime_r(&now, &localTm);
   char timeBuf[40];
   strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &utcTm);
-  if (utcTm.tm_year <= 120)
+  if (utcTm.tm_year <= NTP_YEAR_THRESHOLD)
     Serial.println("WARNING: NTP sync failed after 3 attempts — timestamps will be wrong");
   Serial.print("UTC:   ");
   Serial.println(timeBuf);
