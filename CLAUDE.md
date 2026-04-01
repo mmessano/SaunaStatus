@@ -50,14 +50,6 @@ Use before implementing known patterns:
 - `esp32-ota-update` — OTA manifest flow and boot health
 - `kicad-erc-drc-workflow` — ERC/DRC fixes, wire format, PCB parity
 
-## MCP Server Configuration
-
-→ Use skill **`diagnose-mcp-servers`** for diagnostics.
-
-- Config lives in `~/.mcp.json` (global) — NOT `settings.json > mcpServers`
-- KiCad MCP package is **`kicad-skip`** (NOT `skip-python`); module name is `skip`
-- Config changes require a full Claude Code restart
-
 ## Settings File Conventions
 
 Always use `~/` for home-directory paths in `.claude/settings.local.json` or `.claude/settings.json`. Never hardcode `/home/<username>/`.
@@ -81,11 +73,6 @@ All sensor floats init to `NAN`; clear to `NAN` on any read failure; use `||` (n
 
 - Role from external adapter stored verbatim — **never default to a privilege level**; default role must be `""`, never `"admin"`
 - Update `FIRMWARE_VERSION` in `platformio.ini` for every OTA release
-
-## Automated Agents
-
-- Check `PAPERCLIP_API_KEY` is set before starting heartbeat tasks
-- If Bash tool permissions block external API calls, stop immediately — do not retry
 
 ## Common Pitfalls
 

@@ -114,7 +114,13 @@
       "Bash(bash scripts/refresh-docs.sh)",
       "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-embedded-invariants ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)",
       "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-post-edit-validation ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)",
-      "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-tdd-workflow ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)"
+      "Bash(cp -r ~/.claude/homunculus/projects/c6171c639c16/evolved/skills/sauna-tdd-workflow ~/Documents/PlatformIO/Projects/SaunaStatus/.claude/skills/)",
+      "Bash(rm -rf /home/mmessano/Documents/repos/paperclip/server/node_modules/tsx)",
+      "Read(//home/mmessano/Documents/repos/paperclip/**)",
+      "Bash(pnpm install:*)",
+      "Bash(node -e \"require\\(''''/home/mmessano/Documents/repos/paperclip/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs''''\\)\")",
+      "Bash(npm show:*)",
+      "Bash(bash scripts/parallel-tdd.sh 2>&1)"
     ]
   },
   "enabledMcpjsonServers": [
