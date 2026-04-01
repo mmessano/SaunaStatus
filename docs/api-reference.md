@@ -207,8 +207,8 @@ Commands a stepper motor. All commands respond immediately; motor movement runs 
 
 | Value     | Physical Vent         | GPIO Pins              |
 |-----------|-----------------------|------------------------|
-| `outflow` | Upper (exhaust) vent  | 21, 25, 26, 14         |
-| `inflow`  | Lower (intake) vent   | 22, 27, 32, 33         |
+| `outflow` | Upper (exhaust) vent  | 4, 5, 6, 7             |
+| `inflow`  | Lower (intake) vent   | 15, 16, 17, 18         |
 
 #### Command Table
 
@@ -350,7 +350,7 @@ Returns current firmware version and OTA partition information.
 
 ```json
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "partition": "ota_0",
   "boot_failures": 0
 }
@@ -465,10 +465,10 @@ All fields are always present. Temperature fields are in **degrees Fahrenheit**.
 
 | Key     | JSON Type       | Units   | Description                                                                 | Null condition                                          |
 |---------|-----------------|---------|-----------------------------------------------------------------------------|---------------------------------------------------------|
-| `clt`   | number \| null  | °F      | Ceiling temperature (DHT21, GPIO 16)                                        | Sensor NaN or stale (age > 10,000 ms or never read)     |
-| `clh`   | number \| null  | %RH     | Ceiling relative humidity (DHT21, GPIO 16)                                  | Same as `clt`                                           |
-| `d5t`   | number \| null  | °F      | Bench temperature (DHT21, GPIO 17)                                          | Sensor NaN or stale (age > 10,000 ms or never read)     |
-| `d5h`   | number \| null  | %RH     | Bench relative humidity (DHT21, GPIO 17)                                    | Same as `d5t`                                           |
+| `clt`   | number \| null  | °F      | Ceiling temperature (DHT21, GPIO 8)                                         | Sensor NaN or stale (age > 10,000 ms or never read)     |
+| `clh`   | number \| null  | %RH     | Ceiling relative humidity (DHT21, GPIO 8)                                   | Same as `clt`                                           |
+| `d5t`   | number \| null  | °F      | Bench temperature (DHT21, GPIO 9)                                           | Sensor NaN or stale (age > 10,000 ms or never read)     |
+| `d5h`   | number \| null  | %RH     | Bench relative humidity (DHT21, GPIO 9)                                     | Same as `d5t`                                           |
 | `tct`   | number \| null  | °F      | Stove temperature (PT1000 via MAX31865, GPIO 5 CS)                          | MAX31865 fault bit set, or raw reading outside -200–900 °C |
 | `ofs`   | number          | %       | Outflow (upper) vent position, 0–100                                        | Never null                                              |
 | `ofd`   | number          | —       | Outflow motor direction: `1`=CW (opening), `-1`=CCW (closing), `0`=stopped | Never null                                              |

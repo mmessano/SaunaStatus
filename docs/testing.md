@@ -7,17 +7,17 @@ Run with `pio test -e native`. Total: **281 tests** as of 2026-03-29.
 | Suite | Tests | What's covered |
 |---|---|---|
 | `test/test_sensor/` | 8 | `c2f`/`f2c`/`fmtVal`; NaN→null in JSON per sensor |
-| `test/test_config/` | 26 | 3-tier merge logic; range validation; NVS-wins-over-fleet; power-cycle scenarios |
+| `test/test_config/` | 24 | 3-tier merge logic; range validation; NVS-wins-over-fleet; power-cycle scenarios |
 | `test/test_websocket/` | 20 | `buildJsonFull()` output; stale detection edge cases; broadcast timing; buffer sizing |
-| `test/test_auth/` | 47 | Tokens, passwords, user store, login fallback, adapter orchestration, PBKDF2, rate limiting |
-| `test/test_ota/` | 38 | Version parsing/comparison, manifest, rollback, partial download; `formatVersion`, `isDowngrade`, `isSameVersion` |
+| `test/test_auth/` | 69 | Tokens, passwords, user store, login fallback, adapter orchestration, PBKDF2, rate limiting |
+| `test/test_ota/` | 39 | Version parsing/comparison, manifest, rollback, partial download; `formatVersion`, `isDowngrade`, `isSameVersion` |
 | `test/test_sensor_module/` | 5 | `stoveReading()` fallback to ceiling/bench average |
 | `test/test_web_module/` | 6 | `buildJson()` struct assembly; INA260 absent path |
 | `test/test_motor_logic/` | 8 | `motorClampCW()` clamping at max; CCW floor at zero |
-| `test/test_motor_utils/` | 24 | `motorClampCCW`, `motorPosToPercent`, `motorPercentToSteps`; roundtrip |
+| `test/test_motor_utils/` | 23 | `motorClampCCW`, `motorPosToPercent`, `motorPercentToSteps`; roundtrip |
 | `test/test_overheat/` | 19 | `tickOverheat()` state machine; NaN handling; hysteresis; multi-tick lifecycle |
 | `test/test_config_json/` | 15 | `buildConfigJson()` output format; keys; buffer safety |
-| `test/test_version_utils/` | 25 | `formatVersion`, `isDowngrade`, `isSameVersion`; invalid/both-invalid edge cases |
+| `test/test_version_utils/` | 24 | `formatVersion`, `isDowngrade`, `isSameVersion`; invalid/both-invalid edge cases |
 | `test/test_gpio_config/` | 21 | Pin values, adjacency, uniqueness, restricted pins, coil order |
 
 ## Undocumented Items

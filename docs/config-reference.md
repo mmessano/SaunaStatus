@@ -41,7 +41,7 @@ Set via `-D` flags in `platformio.ini` under `build_flags`. Values in `src/main.
 | `AUTH_MIN_PASS_LEN` | `8` | Minimum password length |
 | `AUTH_MAX_PASS_LEN` | `72` | Maximum password length (bounds SHA-256 buffer) |
 | `OTA_MAX_BOOT_FAILURES` | `3` | Consecutive boot failures before rollback |
-| `FIRMWARE_VERSION` | `"1.0.0"` | Firmware version string for OTA comparison |
+| `FIRMWARE_VERSION` | `"2.0.0"` | Firmware version string for OTA comparison |
 
 Commented-out override examples are available in `platformio.ini` under `build_flags`.
 
