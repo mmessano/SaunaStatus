@@ -227,6 +227,11 @@ PubSubClient mqttClient(mqttWifi);
 #define NTP_YEAR_THRESHOLD 120
 #endif
 
+// Serial monitor baud rate; must match platformio.ini monitor_speed
+#ifndef SERIAL_BAUD_RATE
+#define SERIAL_BAUD_RATE 115200
+#endif
+
 // Runtime-configurable intervals and identity (Tier 3: NVS overrides build-flag defaults)
 // These can be changed at runtime via the /config portal without a reboot.
 unsigned long g_sensor_read_interval_ms = DEFAULT_SENSOR_READ_INTERVAL_MS;
@@ -470,7 +475,7 @@ static void otaCheckPartialDownload()
 // begin Setup
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(SERIAL_BAUD_RATE);
 
   // OTA: check for incomplete previous download and consecutive boot failures
   // Run before LittleFS/NVS config load so a bad firmware is caught early.
