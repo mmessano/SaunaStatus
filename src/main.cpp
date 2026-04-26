@@ -345,12 +345,6 @@ static void loadLittleFSConfig()
   }
   String json = f.readString();
   f.close();
-  FleetConfigFile fleet;
-  if (!parseFleetConfigJson(json.c_str(), fleet))
-  {
-    Serial.println("Config: JSON parse error");
-    return;
-  }
 
   FleetRuntimeConfig runtime;
   runtime.sauna.ceiling_setpoint_f = c2f(Ceilingpoint);
@@ -364,7 +358,12 @@ static void loadLittleFSConfig()
   strncpy(runtime.device_name, g_device_name, sizeof(runtime.device_name) - 1);
   runtime.device_name[sizeof(runtime.device_name) - 1] = '\0';
 
-  applyFleetConfigFile(runtime, fleet);
+  FleetConfigLoadStatus status = loadFleetConfigRuntime(runtime, true, true, json.c_str());
+  if (status != FLEET_CONFIG_APPLIED)
+  {
+    Serial.println("Config: JSON parse error");
+    return;
+  }
 
   Ceilingpoint = f2c(runtime.sauna.ceiling_setpoint_f);
   Benchpoint = f2c(runtime.sauna.bench_setpoint_f);

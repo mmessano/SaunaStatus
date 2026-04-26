@@ -87,6 +87,13 @@ struct FleetRuntimeConfig {
     char device_name[DEVICE_NAME_CAPACITY] = "";
 };
 
+enum FleetConfigLoadStatus {
+    FLEET_CONFIG_APPLIED = 0,
+    FLEET_CONFIG_SKIPPED_LITTLEFS_UNAVAILABLE = 1,
+    FLEET_CONFIG_SKIPPED_FILE_MISSING = 2,
+    FLEET_CONFIG_PARSE_ERROR = 3,
+};
+
 // Merge one ConfigLayer into cfg. Range validation: setpoints must be 32-300 degrees F.
 inline void mergeConfigLayer(SaunaConfig &cfg, const ConfigLayer &layer) {
     if (layer.has_ceiling_sp && layer.ceiling_setpoint_f >= 32.0f && layer.ceiling_setpoint_f <= 300.0f)
@@ -259,6 +266,20 @@ inline void applyFleetConfigFile(FleetRuntimeConfig &runtime, const FleetConfigF
         strncpy(runtime.device_name, fleet.device_name, sizeof(runtime.device_name) - 1);
         runtime.device_name[sizeof(runtime.device_name) - 1] = '\0';
     }
+}
+
+inline FleetConfigLoadStatus loadFleetConfigRuntime(FleetRuntimeConfig &runtime,
+                                                    bool littlefs_available,
+                                                    bool file_present,
+                                                    const char *json) {
+    if (!littlefs_available) return FLEET_CONFIG_SKIPPED_LITTLEFS_UNAVAILABLE;
+    if (!file_present) return FLEET_CONFIG_SKIPPED_FILE_MISSING;
+
+    FleetConfigFile fleet;
+    if (!parseFleetConfigJson(json, fleet)) return FLEET_CONFIG_PARSE_ERROR;
+
+    applyFleetConfigFile(runtime, fleet);
+    return FLEET_CONFIG_APPLIED;
 }
 
 inline void buildConfigJson(const SaunaConfig& cfg, char* buf, size_t len) {

@@ -31,6 +31,18 @@ static FleetRuntimeConfig defaultFleetRuntime(void)
     return runtime;
 }
 
+static void assertDefaultFleetRuntime(const FleetRuntimeConfig &runtime)
+{
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 160.0f, runtime.sauna.ceiling_setpoint_f);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 120.0f, runtime.sauna.bench_setpoint_f);
+    TEST_ASSERT_FALSE(runtime.sauna.ceiling_pid_en);
+    TEST_ASSERT_FALSE(runtime.sauna.bench_pid_en);
+    TEST_ASSERT_EQUAL_UINT32(5000UL, runtime.sensor_read_interval_ms);
+    TEST_ASSERT_EQUAL_UINT32(10000UL, runtime.serial_log_interval_ms);
+    TEST_ASSERT_EQUAL_STRING("192.168.1.201", runtime.static_ip_str);
+    TEST_ASSERT_EQUAL_STRING("ESP32-S3", runtime.device_name);
+}
+
 // =============================================================================
 // Scenario 1 — Default config loads correctly when no saved config exists
 // =============================================================================
@@ -440,6 +452,63 @@ void test_apply_fleet_config_file_updates_only_valid_parsed_fields(void)
     TEST_ASSERT_EQUAL_STRING("ESP32-S3", runtime.device_name);
 }
 
+void test_load_fleet_config_runtime_skips_when_littlefs_unavailable(void)
+{
+    FleetRuntimeConfig runtime = defaultFleetRuntime();
+    FleetConfigLoadStatus status = loadFleetConfigRuntime(
+        runtime, false, true,
+        "{\"ceiling_setpoint_f\":180.0,\"device_name\":\"Sauna-X\"}");
+
+    TEST_ASSERT_EQUAL(FLEET_CONFIG_SKIPPED_LITTLEFS_UNAVAILABLE, status);
+    assertDefaultFleetRuntime(runtime);
+}
+
+void test_load_fleet_config_runtime_skips_when_file_missing(void)
+{
+    FleetRuntimeConfig runtime = defaultFleetRuntime();
+    FleetConfigLoadStatus status = loadFleetConfigRuntime(runtime, true, false, nullptr);
+
+    TEST_ASSERT_EQUAL(FLEET_CONFIG_SKIPPED_FILE_MISSING, status);
+    assertDefaultFleetRuntime(runtime);
+}
+
+void test_load_fleet_config_runtime_reports_parse_error(void)
+{
+    FleetRuntimeConfig runtime = defaultFleetRuntime();
+    FleetConfigLoadStatus status = loadFleetConfigRuntime(
+        runtime, true, true, "{\"ceiling_setpoint_f\":");
+
+    TEST_ASSERT_EQUAL(FLEET_CONFIG_PARSE_ERROR, status);
+    assertDefaultFleetRuntime(runtime);
+}
+
+void test_load_fleet_config_runtime_applies_valid_file(void)
+{
+    FleetRuntimeConfig runtime = defaultFleetRuntime();
+    FleetConfigLoadStatus status = loadFleetConfigRuntime(
+        runtime, true, true,
+        "{"
+        "\"ceiling_setpoint_f\":180.0,"
+        "\"bench_setpoint_f\":130.0,"
+        "\"ceiling_pid_enabled\":true,"
+        "\"bench_pid_enabled\":true,"
+        "\"sensor_read_interval_ms\":3000,"
+        "\"serial_log_interval_ms\":12000,"
+        "\"static_ip\":\"192.168.1.88\","
+        "\"device_name\":\"Sauna-X\""
+        "}");
+
+    TEST_ASSERT_EQUAL(FLEET_CONFIG_APPLIED, status);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 180.0f, runtime.sauna.ceiling_setpoint_f);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 130.0f, runtime.sauna.bench_setpoint_f);
+    TEST_ASSERT_TRUE(runtime.sauna.ceiling_pid_en);
+    TEST_ASSERT_TRUE(runtime.sauna.bench_pid_en);
+    TEST_ASSERT_EQUAL_UINT32(3000UL, runtime.sensor_read_interval_ms);
+    TEST_ASSERT_EQUAL_UINT32(12000UL, runtime.serial_log_interval_ms);
+    TEST_ASSERT_EQUAL_STRING("192.168.1.88", runtime.static_ip_str);
+    TEST_ASSERT_EQUAL_STRING("Sauna-X", runtime.device_name);
+}
+
 // =============================================================================
 // Scenario 4 — Config values survive simulated power cycles
 // =============================================================================
@@ -612,6 +681,10 @@ int main(int argc, char **argv)
     RUN_TEST(test_parse_fleet_config_json_rejects_invalid_values_per_field);
     RUN_TEST(test_apply_fleet_config_file_preserves_defaults_when_layer_empty);
     RUN_TEST(test_apply_fleet_config_file_updates_only_valid_parsed_fields);
+    RUN_TEST(test_load_fleet_config_runtime_skips_when_littlefs_unavailable);
+    RUN_TEST(test_load_fleet_config_runtime_skips_when_file_missing);
+    RUN_TEST(test_load_fleet_config_runtime_reports_parse_error);
+    RUN_TEST(test_load_fleet_config_runtime_applies_valid_file);
 
     // Scenario 4: power cycle persistence
     RUN_TEST(test_power_cycle_idempotent);
