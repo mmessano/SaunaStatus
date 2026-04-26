@@ -1,6 +1,6 @@
 # Testing
 
-Run with `pio test -e native`. Total: **300 tests** as of 2026-04-25.
+Run with `pio test -e native`. Total: **320 tests** as of 2026-04-26.
 Run `python3 scripts/verify_doc_drift.py` to verify documented HTTP routes and high-risk constants still match source.
 
 Hardware-only verification is tracked separately in [docs/hardware-smoke.md](/home/mmessano/Documents/PlatformIO/Projects/SaunaStatus/docs/hardware-smoke.md:1). Use that checklist after firmware flashes, LittleFS uploads, OTA changes, Wi-Fi/MQTT changes, or safety-path edits.
@@ -13,6 +13,7 @@ Hardware-only verification is tracked separately in [docs/hardware-smoke.md](/ho
 | `test/test_config/` | 33 | 3-tier merge logic; range validation; malformed/partial fleet config parsing; LittleFS unavailable/missing/malformed boot semantics; NVS-wins-over-fleet; power-cycle scenarios |
 | `test/test_websocket/` | 20 | `buildJsonFull()` output; stale detection edge cases; broadcast timing; buffer sizing |
 | `test/test_auth/` | 69 | Tokens, passwords, user store, login fallback, adapter orchestration, PBKDF2, rate limiting |
+| `test/test_web_rbac/` | 20 | Route-level RBAC regressions for admin-only handlers in `src/web.cpp` and `src/web_auth.cpp` using native Arduino/WebServer stubs, including all `/users` methods plus admin-path state mutation checks for `/config/save`, `/motor`, `/setpoint`, and `/pid` |
 | `test/test_ota/` | 39 | Version parsing/comparison, manifest, rollback, partial download; `formatVersion`, `isDowngrade`, `isSameVersion` |
 | `test/test_sensor_module/` | 5 | `stoveReading()` fallback to ceiling/bench average |
 | `test/test_web_module/` | 6 | `buildJson()` struct assembly; INA260 absent path |

@@ -83,11 +83,20 @@ TODOS="$(grep -rn --include='*.cpp' --include='*.h' --include='*.c' --include='*
 BUILD_STATUS="skipped"
 BUILD_WARNINGS="(build not run)"
 BUILD_NOTE=""
+BUILD_LOG_FILE="$(mktemp)"
+TEST_LOG_FILE="$(mktemp)"
+cleanup() {
+    rm -f "$BUILD_LOG_FILE" "$TEST_LOG_FILE"
+}
+trap cleanup EXIT
 
 if [[ "$RUN_BUILD" == "1" ]]; then
     log "Running PlatformIO build (pio run -t build -e lb_esp32s3)..."
-    BUILD_LOG="$(cd "$REPO" && pio run -t build -e lb_esp32s3 2>&1)" \
-        && BUILD_EXIT=0 || BUILD_EXIT=$?
+    if (cd "$REPO" && pio run -t build -e lb_esp32s3 >"$BUILD_LOG_FILE" 2>&1); then
+        BUILD_EXIT=0
+    else
+        BUILD_EXIT=$?
+    fi
 
     if [[ "$BUILD_EXIT" -eq 0 ]]; then
         BUILD_STATUS="SUCCESS"
@@ -96,7 +105,7 @@ if [[ "$RUN_BUILD" == "1" ]]; then
     fi
 
     # Extract warning lines (deduplicated, capped)
-    BUILD_WARNINGS="$(echo "$BUILD_LOG" \
+    BUILD_WARNINGS="$(cat "$BUILD_LOG_FILE" \
         | grep -i ': warning:' \
         | sed 's|.*/src/||' \
         | sort -u \
@@ -113,12 +122,16 @@ fi
 # ── section 5: test status ───────────────────────────────────────────────────
 
 log "Running native tests..."
-TEST_OUT="$(cd "$REPO" && pio test -e native 2>&1)" && TEST_EXIT=0 || TEST_EXIT=$?
-TEST_PASS="$(echo "$TEST_OUT" | grep -cE '^(PASS|OK)' || true)"
-TEST_FAIL="$(echo "$TEST_OUT" | grep -cE '^(FAIL|ERROR)' || true)"
+if (cd "$REPO" && pio test -e native >"$TEST_LOG_FILE" 2>&1); then
+    TEST_EXIT=0
+else
+    TEST_EXIT=$?
+fi
+TEST_PASS="$(grep -cE '^(PASS|OK)' "$TEST_LOG_FILE" || true)"
+TEST_FAIL="$(grep -cE '^(FAIL|ERROR)' "$TEST_LOG_FILE" || true)"
 # PlatformIO test summary: "X Tests Y Failures Z Ignored" or "[PASSED]"/"[FAILED]"
-TEST_SUMMARY_LINE="$(echo "$TEST_OUT" | grep -E '([0-9]+ Tests|PASSED|FAILED|passed|failed)' | tail -3 || true)"
-TEST_FAILURES="$(echo "$TEST_OUT" | grep -E '(:FAIL|:ERROR)' | head -10 || true)"
+TEST_SUMMARY_LINE="$(grep -E '([0-9]+ Tests|PASSED|FAILED|passed|failed)' "$TEST_LOG_FILE" | tail -3 || true)"
+TEST_FAILURES="$(grep -E '(:FAIL|:ERROR)' "$TEST_LOG_FILE" | head -10 || true)"
 
 if [[ "$TEST_EXIT" -eq 0 ]]; then
     TEST_STATUS="ALL PASSED"
