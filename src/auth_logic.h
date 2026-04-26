@@ -80,6 +80,12 @@ enum AuthSource {
     AUTH_SRC_ADAPTER = 1,
 };
 
+enum AuthAccessResult {
+    AUTH_ACCESS_OK            = 0,
+    AUTH_ACCESS_TOKEN_INVALID = 1,
+    AUTH_ACCESS_FORBIDDEN     = 2,
+};
+
 struct LoginOutcome {
     LoginResult result;
     AuthSource  source;
@@ -208,6 +214,11 @@ inline bool authUsernameValid(const char *name) {
         if (!ok) return false;
     }
     return len >= AUTH_MIN_USER_LEN && len <= AUTH_MAX_USER_LEN;
+}
+
+// Exact role match for privileged access checks.
+inline bool authRoleIsAdmin(const char *role) {
+    return role && strcmp(role, "admin") == 0;
 }
 
 // ── Password helpers ──────────────────────────────────────────────────────
@@ -354,6 +365,26 @@ inline const AuthSession *authValidateToken(const AuthSession sessions[], int ma
         if (authTokenEqual(sessions[i].token, token)) return &sessions[i];
     }
     return nullptr;
+}
+
+// Authorizes a bearer token against the current session store.
+// Use require_admin=true for admin-only routes.
+inline AuthAccessResult authAuthorizeToken(const AuthSession sessions[], int max,
+                                            const char *token,
+                                            uint32_t now_ms, uint32_t ttl_ms,
+                                            bool require_admin,
+                                            const AuthSession **out_session) {
+    const AuthSession *s = authValidateToken(sessions, max, token, now_ms, ttl_ms);
+    if (!s) {
+        if (out_session) *out_session = nullptr;
+        return AUTH_ACCESS_TOKEN_INVALID;
+    }
+    if (require_admin && !authRoleIsAdmin(s->role)) {
+        if (out_session) *out_session = nullptr;
+        return AUTH_ACCESS_FORBIDDEN;
+    }
+    if (out_session) *out_session = s;
+    return AUTH_ACCESS_OK;
 }
 
 // Clears the session matching token (if found).

@@ -506,6 +506,91 @@ void test_add_user_bad_username_rejected(void) {
     TEST_ASSERT_EQUAL(0, store.count);
 }
 
+void test_admin_role_matches_exactly(void) {
+    TEST_ASSERT_TRUE(authRoleIsAdmin("admin"));
+}
+
+void test_non_admin_role_rejected(void) {
+    TEST_ASSERT_FALSE(authRoleIsAdmin("viewer"));
+    TEST_ASSERT_FALSE(authRoleIsAdmin("ADMIN"));
+}
+
+void test_empty_role_not_admin(void) {
+    TEST_ASSERT_FALSE(authRoleIsAdmin(""));
+    TEST_ASSERT_FALSE(authRoleIsAdmin(nullptr));
+}
+
+void test_authorize_token_accepts_viewer_for_non_admin_routes(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "viewer1", "viewer", 1000, testRandFn, token);
+    const AuthSession *s = nullptr;
+    AuthAccessResult r = authAuthorizeToken(
+        g_sessions, AUTH_MAX_SESSIONS, token, 1500, AUTH_TOKEN_TTL_MS, false, &s);
+    TEST_ASSERT_EQUAL(AUTH_ACCESS_OK, r);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("viewer1", s->username);
+    TEST_ASSERT_EQUAL_STRING("viewer", s->role);
+}
+
+void test_authorize_token_rejects_viewer_for_admin_routes(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "viewer1", "viewer", 1000, testRandFn, token);
+    const AuthSession *s = nullptr;
+    AuthAccessResult r = authAuthorizeToken(
+        g_sessions, AUTH_MAX_SESSIONS, token, 1500, AUTH_TOKEN_TTL_MS, true, &s);
+    TEST_ASSERT_EQUAL(AUTH_ACCESS_FORBIDDEN, r);
+    TEST_ASSERT_NULL(s);
+}
+
+void test_authorize_token_accepts_admin_for_admin_routes(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "admin1", "admin", 1000, testRandFn, token);
+    const AuthSession *s = nullptr;
+    AuthAccessResult r = authAuthorizeToken(
+        g_sessions, AUTH_MAX_SESSIONS, token, 1500, AUTH_TOKEN_TTL_MS, true, &s);
+    TEST_ASSERT_EQUAL(AUTH_ACCESS_OK, r);
+    TEST_ASSERT_NOT_NULL(s);
+    TEST_ASSERT_EQUAL_STRING("admin1", s->username);
+    TEST_ASSERT_EQUAL_STRING("admin", s->role);
+}
+
+void test_authorize_token_rejects_invalid_token(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "admin1", "admin", 1000, testRandFn, token);
+    token[0] = (token[0] == 'a') ? 'b' : 'a';
+    const AuthSession *s = nullptr;
+    AuthAccessResult r = authAuthorizeToken(
+        g_sessions, AUTH_MAX_SESSIONS, token, 1500, AUTH_TOKEN_TTL_MS, true, &s);
+    TEST_ASSERT_EQUAL(AUTH_ACCESS_TOKEN_INVALID, r);
+    TEST_ASSERT_NULL(s);
+}
+
+void test_authorize_token_rejects_expired_token(void) {
+    clearSessions();
+    g_randCounter = 0;
+    char token[65];
+    authIssueToken(g_sessions, AUTH_MAX_SESSIONS,
+                   "admin1", "admin", 0, testRandFn, token);
+    const AuthSession *s = nullptr;
+    AuthAccessResult r = authAuthorizeToken(
+        g_sessions, AUTH_MAX_SESSIONS, token, AUTH_TOKEN_TTL_MS + 1,
+        AUTH_TOKEN_TTL_MS, true, &s);
+    TEST_ASSERT_EQUAL(AUTH_ACCESS_TOKEN_INVALID, r);
+    TEST_ASSERT_NULL(s);
+}
+
 // ── Adapter URL validation tests ────────────────────────────────────────────
 
 void test_adapter_url_empty_is_valid(void) {
@@ -803,6 +888,14 @@ int main(int argc, char **argv) {
     RUN_TEST(test_username_special_chars_rejected);
     RUN_TEST(test_username_max_length);
     RUN_TEST(test_add_user_bad_username_rejected);
+    RUN_TEST(test_admin_role_matches_exactly);
+    RUN_TEST(test_non_admin_role_rejected);
+    RUN_TEST(test_empty_role_not_admin);
+    RUN_TEST(test_authorize_token_accepts_viewer_for_non_admin_routes);
+    RUN_TEST(test_authorize_token_rejects_viewer_for_admin_routes);
+    RUN_TEST(test_authorize_token_accepts_admin_for_admin_routes);
+    RUN_TEST(test_authorize_token_rejects_invalid_token);
+    RUN_TEST(test_authorize_token_rejects_expired_token);
     // Adapter URL validation
     RUN_TEST(test_adapter_url_empty_is_valid);
     RUN_TEST(test_adapter_url_https_is_valid);
