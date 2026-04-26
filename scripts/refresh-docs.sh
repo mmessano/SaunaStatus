@@ -10,7 +10,7 @@
 #   2. claude --print audit      — full CLAUDE.md semantic audit
 #   3. claude --print extend     — AI open-issues + next-steps in HANDOFF.md
 #   4. claude --print skills     — extract uncaptured patterns → new skill files
-#   5. hook verify               — dry-run post-commit hook
+#   5. hook verify               — dry-run pre-commit handoff hook
 #   6. diff + confirm + commit
 
 set -uo pipefail
@@ -378,18 +378,18 @@ fi
 
 # ── Step 5: hook verification ─────────────────────────────────────────────────
 
-step 5 "Post-commit hook verification"
+step 5 "Pre-commit hook verification"
 
-log "Running post-commit hook in dry-run mode (SKIP_BUILD=1)..."
+log "Running pre-commit hook in dry-run mode (SKIP_BUILD=1)..."
 # Save AI-extended HANDOFF.md — update-handoff.sh unconditionally overwrites it
 cp "$REPO/HANDOFF.md" "$TMPDIR_REFRESH/handoff_backup.md"
-HOOK_OUT="$(SKIP_BUILD=1 bash "$REPO/scripts/update-handoff.sh" 2>&1)" \
+HOOK_OUT="$(SKIP_BUILD=1 bash "$REPO/scripts/pre-commit-handoff.sh" 2>&1)" \
     && HOOK_EXIT=0 || HOOK_EXIT=$?
 # Restore the AI-extended version
 mv "$TMPDIR_REFRESH/handoff_backup.md" "$REPO/HANDOFF.md"
 
 if [[ "$HOOK_EXIT" -eq 0 ]]; then
-    log "Hook PASS — post-commit hook exits 0."
+    log "Hook PASS — pre-commit handoff hook exits 0."
 else
     warn "Hook FAIL (exit $HOOK_EXIT) — hook is broken but continuing refresh."
     echo "$HOOK_OUT" | sed 's/^/    /' >&2

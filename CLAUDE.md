@@ -35,10 +35,10 @@ After any functional change: `pio test -e native`. After any JSON edit: `python3
 
 ## Git Hooks
 
-`scripts/pre-commit-handoff.sh` regenerates and stages `HANDOFF.md` before every commit. Install on each clone:
+`scripts/pre-commit-handoff.sh` regenerates and stages `HANDOFF.md` before every commit. Install the local hooks on each clone with:
 
 ```bash
-ln -s ../../scripts/pre-commit-handoff.sh .git/hooks/pre-commit
+bash scripts/install-hooks.sh
 ```
 
 ## Skills
