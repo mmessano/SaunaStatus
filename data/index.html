@@ -30,6 +30,8 @@
                       border-radius: 6px; cursor: pointer; font-size: 0.85em; margin-left: 8px; }
     .auth-required { display: none; }
     body.authenticated .auth-required { display: block !important; }
+    .admin-required { display: none; }
+    body.admin .admin-required { display: block !important; }
     body.authenticated #login-panel { display: none !important; }
   </style>
 </head><body>
@@ -128,7 +130,7 @@
       <div class="unit">mW</div>
     </div>
     <div class="section">Control</div>
-    <div class="auth-required">
+    <div class="admin-required">
       <div class="card">
         <h2>Outflow Motor</h2>
         <div class="reading" id="ofs">--</div>
@@ -155,7 +157,7 @@
         </div>
       </div>
     </div>
-    <div class="auth-required">
+    <div class="admin-required">
       <div class="card">
         <h2>Inflow Motor</h2>
         <div class="reading" id="ifs">--</div>
@@ -194,7 +196,7 @@
       <div class="unit">% Output</div>
       <div class="unit">SP: <span id="bsp">--</span>&deg;F &bull; <span id="btm">--</span></div>
     </div>
-    <div class="auth-required">
+    <div class="admin-required">
       <div class="card">
         <h2>Setpoints</h2>
         <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:10px;">
@@ -220,11 +222,11 @@
     <span class="dot" id="dot"></span>
     <span id="connStatus">Connecting...</span>
   </div>
-  <div class="auth-required">
+  <div class="admin-required">
     <button class="btn" onclick="logNow()">Log Now</button>
     <div id="logStatus"></div>
   </div>
-  <div class="auth-required" style="margin-top:16px;">
+  <div class="admin-required" style="margin-top:16px;">
     <button class="btn btn-warn" onclick="resetBucket('status','sauna_status')">Reset sauna_status</button>
     <button class="btn btn-warn" onclick="resetBucket('control','sauna_control')">Reset sauna_control</button>
     <div id="resetStatus"></div>
@@ -238,12 +240,25 @@
                           { 'Authorization': 'Bearer ' + tok });
       return fetch(url, options).then(function(r) {
         if (r.status === 401) {
-          localStorage.removeItem('token');
-          document.body.classList.remove('authenticated');
-          if (ws) { ws.close(); ws = null; }
+          clearAuthState();
         }
         return r;
       });
+    }
+
+    function setRole(role) {
+      localStorage.setItem('role', role || '');
+      document.body.classList.toggle('admin', role === 'admin');
+    }
+
+    function clearAuthState() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('username');
+      localStorage.removeItem('role');
+      document.body.classList.remove('authenticated');
+      document.body.classList.remove('admin');
+      document.getElementById('authUser').innerText = '';
+      if (ws) { ws.close(); ws = null; }
     }
 
     async function doLogin() {
@@ -265,11 +280,11 @@
         var d = await r.json();
         localStorage.setItem('token', d.token);
         localStorage.setItem('username', d.username);
-        localStorage.setItem('role', d.role);
+        setRole(d.role);
         document.getElementById('authUser').innerText = d.username;
         document.body.classList.add('authenticated');
         connect();
-        loadUsers();
+        if (d.role === 'admin') loadUsers();
       } catch(e) {
         err.textContent = 'Connection error. Try again.';
         err.style.display = 'block';
@@ -278,12 +293,7 @@
 
     function logout() {
       authFetch('/auth/logout', { method: 'POST' }).finally(function() {
-        localStorage.removeItem('token');
-        localStorage.removeItem('username');
-        localStorage.removeItem('role');
-        document.body.classList.remove('authenticated');
-        document.getElementById('authUser').innerText = '';
-        if (ws) { ws.close(); ws = null; }
+        clearAuthState();
       });
     }
 
@@ -296,11 +306,12 @@
           .then(function(d) {
             document.getElementById('authUser').innerText = d.username || '';
             document.body.classList.add('authenticated');
+            setRole(d.role);
             connect();
-            loadUsers();
+            if (d.role === 'admin') loadUsers();
           })
           .catch(function() {
-            localStorage.removeItem('token');
+            clearAuthState();
             // login panel shown via CSS (body not .authenticated)
           });
       }
@@ -436,7 +447,7 @@
       var el = document.getElementById('resetStatus');
       el.style.color = '#718096';
       el.innerText = 'Deleting ' + name + '...';
-      authFetch('/delete/' + path).then(function(r) { return r.text(); }).then(function(t) {
+      authFetch('/delete/' + path, { method: 'DELETE' }).then(function(r) { return r.text(); }).then(function(t) {
         el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
         el.innerText = t === 'OK' ? name + ' cleared' : 'Error: ' + t;
       }).catch(function() {
@@ -448,7 +459,7 @@
       var el = document.getElementById('logStatus');
       el.style.color = '#718096';
       el.innerText = 'Logging...';
-      authFetch('/log').then(function(r) { return r.text(); }).then(function(t) {
+      authFetch('/log', { method: 'POST' }).then(function(r) { return r.text(); }).then(function(t) {
         el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
         el.innerText = t === 'OK' ? 'Logged successfully' : 'Error: ' + t;
       }).catch(function() {
@@ -458,7 +469,7 @@
     }
     function motorCmd(motor, cmd) {
       var steps = parseInt(document.getElementById(motor === 'outflow' ? 'oSteps' : 'iSteps').value) || 64;
-      authFetch('/motor?motor=' + motor + '&cmd=' + cmd + '&steps=' + steps)
+      authFetch('/motor?motor=' + motor + '&cmd=' + cmd + '&steps=' + steps, { method: 'POST' })
         .then(function(r){ return r.text(); })
         .then(function(t){ if (t !== 'OK') alert('Motor error: ' + t); });
     }
@@ -470,7 +481,7 @@
     function togglePid(which) {
       var id = which === 'ceiling' ? 'cPidBtn' : 'bPidBtn';
       var isOn = document.getElementById(id).innerText === 'ON';
-      authFetch('/pid?' + which + '=' + (isOn ? '0' : '1'))
+      authFetch('/pid?' + which + '=' + (isOn ? '0' : '1'), { method: 'POST' })
         .then(function(r){ return r.text(); })
         .then(function(t){ if (t === 'OK') setPidBtn(id, !isOn); });
     }
@@ -479,7 +490,7 @@
       var b = document.getElementById('bspInput').value;
       var el = document.getElementById('spStatus');
       el.style.color = '#718096'; el.innerText = 'Setting\u2026';
-      authFetch('/setpoint?ceiling=' + encodeURIComponent(c) + '&bench=' + encodeURIComponent(b))
+      authFetch('/setpoint?ceiling=' + encodeURIComponent(c) + '&bench=' + encodeURIComponent(b), { method: 'POST' })
         .then(function(r){ return r.text(); })
         .then(function(t){
           el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
@@ -610,7 +621,7 @@
         .then(function(){ loadUsers(); });
     }
   </script>
-  <div class="auth-required">
+  <div class="admin-required">
     <div id="usersCard" class="card" style="width:100%;max-width:480px;">
       <h2>Users</h2>
       <div id="usersList" style="margin-bottom:16px;font-size:0.9em;"></div>

@@ -168,7 +168,7 @@ inline AdapterResult adapterShim(const char *username, const char *password,
     return authCallAdapter(username, password, c->db_url, c->db_key, out_role);
 }
 
-// ── requireAdmin() guard ──────────────────────────────────────────────────
+// ── Auth guards ───────────────────────────────────────────────────────────
 inline void authAddSecurityHeaders() {
     server.sendHeader("X-Frame-Options",        "DENY");
     server.sendHeader("X-Content-Type-Options", "nosniff");
@@ -180,7 +180,32 @@ inline void authAddSecurityHeaders() {
         "connect-src 'self' ws:");
 }
 
-// Returns the validated session pointer, or nullptr (and sends 401) on failure
+// Returns the validated session pointer, or nullptr (and sends 401) on failure.
+inline const AuthSession *requireSession() {
+    authAddSecurityHeaders();
+    if (!server.hasHeader("Authorization")) {
+        server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
+        return nullptr;
+    }
+    String auth = server.header("Authorization");
+    if (!auth.startsWith("Bearer ")) {
+        server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
+        return nullptr;
+    }
+    String token = auth.substring(7);
+    uint32_t now = millis();
+    const AuthSession *s = nullptr;
+    AuthAccessResult access = authAuthorizeToken(
+        g_auth_sessions, AUTH_MAX_SESSIONS, token.c_str(), now, AUTH_TOKEN_TTL_MS,
+        false, &s);
+    if (access != AUTH_ACCESS_OK) {
+        server.send(401, "application/json", "{\"error\":\"token_invalid\"}");
+        return nullptr;
+    }
+    return s;
+}
+
+// Returns the validated admin session pointer, or nullptr on failure.
 inline const AuthSession *requireAdmin() {
     authAddSecurityHeaders();
     if (!server.hasHeader("Authorization")) {
@@ -194,10 +219,16 @@ inline const AuthSession *requireAdmin() {
     }
     String token = auth.substring(7);
     uint32_t now = millis();
-    const AuthSession *s = authValidateToken(g_auth_sessions, AUTH_MAX_SESSIONS,
-                                              token.c_str(), now, AUTH_TOKEN_TTL_MS);
-    if (!s) {
+    const AuthSession *s = nullptr;
+    AuthAccessResult access = authAuthorizeToken(
+        g_auth_sessions, AUTH_MAX_SESSIONS, token.c_str(), now, AUTH_TOKEN_TTL_MS,
+        true, &s);
+    if (access == AUTH_ACCESS_TOKEN_INVALID) {
         server.send(401, "application/json", "{\"error\":\"token_invalid\"}");
+        return nullptr;
+    }
+    if (access == AUTH_ACCESS_FORBIDDEN) {
+        server.send(403, "application/json", "{\"error\":\"forbidden\"}");
         return nullptr;
     }
     return s;

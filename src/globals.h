@@ -45,6 +45,7 @@ extern float b_consKp, b_consKi, b_consKd;
 // Runtime config
 extern unsigned long g_sensor_read_interval_ms;
 extern unsigned long g_serial_log_interval_ms;
+extern bool g_littlefs_mounted;
 // char arrays (not String) — require restart to take effect when changed
 extern char g_device_name[];
 extern char g_static_ip_str[];

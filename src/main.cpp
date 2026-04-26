@@ -243,6 +243,7 @@ PubSubClient mqttClient(mqttWifi);
 // These can be changed at runtime via the /config portal without a reboot.
 unsigned long g_sensor_read_interval_ms = DEFAULT_SENSOR_READ_INTERVAL_MS;
 unsigned long g_serial_log_interval_ms  = SERIAL_LOG_INTERVAL_MS;
+bool g_littlefs_mounted = false;
 // Static IP and device name require a restart to take effect.
 char g_device_name[25]  = DEVICE;
 char g_static_ip_str[16] = DEFAULT_STATIC_IP;
@@ -331,55 +332,51 @@ float b_consKp = PID_CONS_KP, b_consKi = PID_CONS_KI, b_consKd = PID_CONS_KD;
 // Call after LittleFS.begin() and before loadNVS() so NVS still wins for runtime changes.
 static void loadLittleFSConfig()
 {
+  if (!g_littlefs_mounted)
+  {
+    Serial.println("Config: LittleFS unavailable — skipping /config.json and using built-in defaults");
+    return;
+  }
   File f = LittleFS.open("/config.json", "r");
   if (!f)
   {
     Serial.println("Config: /config.json not found — using built-in defaults");
     return;
   }
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, f);
+  String json = f.readString();
   f.close();
-  if (err)
+  FleetConfigFile fleet;
+  if (!parseFleetConfigJson(json.c_str(), fleet))
   {
-    Serial.printf("Config: JSON parse error: %s\n", err.c_str());
+    Serial.println("Config: JSON parse error");
     return;
   }
-  if (doc["ceiling_setpoint_f"].is<float>())
-  {
-    float v = doc["ceiling_setpoint_f"].as<float>();
-    if (v >= SETPOINT_MIN_F && v <= SETPOINT_MAX_F)
-      Ceilingpoint = (v - 32.0f) * 5.0f / 9.0f;
-  }
-  if (doc["bench_setpoint_f"].is<float>())
-  {
-    float v = doc["bench_setpoint_f"].as<float>();
-    if (v >= SETPOINT_MIN_F && v <= SETPOINT_MAX_F)
-      Benchpoint = (v - 32.0f) * 5.0f / 9.0f;
-  }
-  if (doc["ceiling_pid_enabled"].is<bool>())
-    ceiling_pid_en = doc["ceiling_pid_enabled"].as<bool>();
-  if (doc["bench_pid_enabled"].is<bool>())
-    bench_pid_en = doc["bench_pid_enabled"].as<bool>();
-  if (doc["sensor_read_interval_ms"].is<unsigned long>()) {
-    unsigned long v = doc["sensor_read_interval_ms"].as<unsigned long>();
-    if (v >= SENSOR_READ_INTERVAL_MIN_MS && v <= SENSOR_READ_INTERVAL_MAX_MS) g_sensor_read_interval_ms = v;
-  }
-  if (doc["serial_log_interval_ms"].is<unsigned long>()) {
-    unsigned long v = doc["serial_log_interval_ms"].as<unsigned long>();
-    if (v >= SERIAL_LOG_INTERVAL_MIN_MS && v <= SERIAL_LOG_INTERVAL_MAX_MS) g_serial_log_interval_ms = v;
-  }
-  if (doc["static_ip"].is<const char *>()) {
-    const char *s = doc["static_ip"].as<const char *>();
-    IPAddress ip;
-    if (s && ip.fromString(s))
-      strncpy(g_static_ip_str, s, sizeof(g_static_ip_str) - 1);
-  }
-  if (doc["device_name"].is<const char *>()) {
-    const char *s = doc["device_name"].as<const char *>();
-    if (s && strlen(s) > 0 && strlen(s) < sizeof(g_device_name))
-      strncpy(g_device_name, s, sizeof(g_device_name) - 1);
-  }
+
+  FleetRuntimeConfig runtime;
+  runtime.sauna.ceiling_setpoint_f = c2f(Ceilingpoint);
+  runtime.sauna.bench_setpoint_f = c2f(Benchpoint);
+  runtime.sauna.ceiling_pid_en = ceiling_pid_en;
+  runtime.sauna.bench_pid_en = bench_pid_en;
+  runtime.sensor_read_interval_ms = g_sensor_read_interval_ms;
+  runtime.serial_log_interval_ms = g_serial_log_interval_ms;
+  strncpy(runtime.static_ip_str, g_static_ip_str, sizeof(runtime.static_ip_str) - 1);
+  runtime.static_ip_str[sizeof(runtime.static_ip_str) - 1] = '\0';
+  strncpy(runtime.device_name, g_device_name, sizeof(runtime.device_name) - 1);
+  runtime.device_name[sizeof(runtime.device_name) - 1] = '\0';
+
+  applyFleetConfigFile(runtime, fleet);
+
+  Ceilingpoint = f2c(runtime.sauna.ceiling_setpoint_f);
+  Benchpoint = f2c(runtime.sauna.bench_setpoint_f);
+  ceiling_pid_en = runtime.sauna.ceiling_pid_en;
+  bench_pid_en = runtime.sauna.bench_pid_en;
+  g_sensor_read_interval_ms = runtime.sensor_read_interval_ms;
+  g_serial_log_interval_ms = runtime.serial_log_interval_ms;
+  strncpy(g_static_ip_str, runtime.static_ip_str, sizeof(g_static_ip_str) - 1);
+  g_static_ip_str[sizeof(g_static_ip_str) - 1] = '\0';
+  strncpy(g_device_name, runtime.device_name, sizeof(g_device_name) - 1);
+  g_device_name[sizeof(g_device_name) - 1] = '\0';
+
   Serial.printf("Config: csp=%.1f°F bsp=%.1f°F cen=%d ben=%d\n",
                 c2f(Ceilingpoint), c2f(Benchpoint),
                 ceiling_pid_en, bench_pid_en);
@@ -489,8 +486,11 @@ void setup()
   otaCheckPartialDownload();
   otaCheckBootHealth();
 
-  if (!LittleFS.begin(true))
-    Serial.println("LittleFS mount failed");
+  g_littlefs_mounted = LittleFS.begin(false);
+  if (!g_littlefs_mounted) {
+    Serial.println("LittleFS mount failed — preserving existing filesystem contents");
+    Serial.println("LittleFS unavailable: web UI and fleet /config.json disabled until filesystem is repaired and uploaded");
+  }
 
   // Layer 2: fleet defaults from /config.json (overrides build-flag defaults)
   loadLittleFSConfig();
@@ -640,13 +640,13 @@ void setup()
   authSeedEmergencyAdmin(&g_auth_users);
 
   server.on("/", handleRoot);
-  server.on("/log", handleLog);
-  server.on("/delete/status", handleDeleteStatus);
-  server.on("/delete/control", handleDeleteControl);
+  server.on("/log", HTTP_POST, handleLog);
+  server.on("/delete/status", HTTP_DELETE, handleDeleteStatus);
+  server.on("/delete/control", HTTP_DELETE, handleDeleteControl);
   server.on("/history", handleHistory);
-  server.on("/setpoint", handleSetpoint);
-  server.on("/pid", handlePidToggle);
-  server.on("/motor", handleMotorCmd);
+  server.on("/setpoint", HTTP_POST, handleSetpoint);
+  server.on("/pid", HTTP_POST, handlePidToggle);
+  server.on("/motor", HTTP_POST, handleMotorCmd);
   server.on("/config", HTTP_GET, handleConfigPage);
   server.on("/config/get", HTTP_GET, handleConfigGet);
   server.on("/config/save", HTTP_POST, handleConfigSave);

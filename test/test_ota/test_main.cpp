@@ -277,6 +277,17 @@ void test_ota_validate_url_rejects_http(void) {
     TEST_ASSERT_FALSE(otaValidateUrl("http://192.168.1.100/manifest.json"));
 }
 
+void test_ota_validate_url_accepts_https_allowed_host(void) {
+    TEST_ASSERT_TRUE(otaValidateUrlWithAllowlist(
+        "https://fw1.example.com/manifest.json",
+        "fw1.example.com, fw2.example.com"));
+}
+
+void test_ota_validate_url_rejects_https_with_empty_allowlist(void) {
+    TEST_ASSERT_FALSE(otaValidateUrlWithAllowlist(
+        "https://fw1.example.com/manifest.json", ""));
+}
+
 void test_ota_validate_url_rejects_unknown_host(void) {
     // Even with HTTPS, host must be in OTA_ALLOWED_HOSTS (default is empty)
     // With default empty allowlist, all URLs are rejected
@@ -335,6 +346,8 @@ int main(int argc, char **argv) {
     RUN_TEST(test_ota_host_allowed_empty_list);
     RUN_TEST(test_ota_host_allowed_empty_hostname);
     RUN_TEST(test_ota_validate_url_rejects_http);
+    RUN_TEST(test_ota_validate_url_accepts_https_allowed_host);
+    RUN_TEST(test_ota_validate_url_rejects_https_with_empty_allowlist);
     RUN_TEST(test_ota_validate_url_rejects_unknown_host);
 
     return UNITY_END();

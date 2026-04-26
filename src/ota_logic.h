@@ -177,11 +177,16 @@ inline bool otaHostAllowed(const char *hostname, const char *allowlist) {
 
 // Full OTA URL validation: HTTPS required + hostname must be in allowlist.
 // Returns true if URL is acceptable for OTA download.
-inline bool otaValidateUrl(const char *url) {
+inline bool otaValidateUrlWithAllowlist(const char *url, const char *allowlist) {
     if (!otaIsHttps(url)) return false;
     char hostname[64];
     if (!otaExtractHostname(url, hostname, sizeof(hostname))) return false;
-    return otaHostAllowed(hostname, OTA_ALLOWED_HOSTS);
+    return otaHostAllowed(hostname, allowlist);
+}
+
+// Build-configured OTA URL validation.
+inline bool otaValidateUrl(const char *url) {
+    return otaValidateUrlWithAllowlist(url, OTA_ALLOWED_HOSTS);
 }
 
 // =============================================================================

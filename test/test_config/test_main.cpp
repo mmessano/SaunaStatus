@@ -15,6 +15,22 @@ static SaunaConfig runLoadSequence(const ConfigLayer &fleet, const ConfigLayer &
     return cfg;
 }
 
+static FleetRuntimeConfig defaultFleetRuntime(void)
+{
+    FleetRuntimeConfig runtime;
+    runtime.sauna.ceiling_setpoint_f = 160.0f;
+    runtime.sauna.bench_setpoint_f = 120.0f;
+    runtime.sauna.ceiling_pid_en = false;
+    runtime.sauna.bench_pid_en = false;
+    runtime.sensor_read_interval_ms = 5000UL;
+    runtime.serial_log_interval_ms = 10000UL;
+    strncpy(runtime.static_ip_str, "192.168.1.201", sizeof(runtime.static_ip_str) - 1);
+    runtime.static_ip_str[sizeof(runtime.static_ip_str) - 1] = '\0';
+    strncpy(runtime.device_name, "ESP32-S3", sizeof(runtime.device_name) - 1);
+    runtime.device_name[sizeof(runtime.device_name) - 1] = '\0';
+    return runtime;
+}
+
 // =============================================================================
 // Scenario 1 — Default config loads correctly when no saved config exists
 // =============================================================================
@@ -310,6 +326,120 @@ void test_pid_enable_flag(void)
     TEST_ASSERT_FALSE(cfg.bench_pid_en); // unset — stays at default
 }
 
+void test_parse_fleet_config_json_malformed_returns_false(void)
+{
+    FleetConfigFile fleet;
+    bool ok = parseFleetConfigJson("{\"ceiling_setpoint_f\":", fleet);
+
+    TEST_ASSERT_FALSE(ok);
+    TEST_ASSERT_FALSE(fleet.layer.has_ceiling_sp);
+    TEST_ASSERT_FALSE(fleet.has_sensor_read_interval_ms);
+    TEST_ASSERT_FALSE(fleet.has_device_name);
+}
+
+void test_parse_fleet_config_json_partial_valid_fields_apply(void)
+{
+    const char *json =
+        "{"
+        "\"ceiling_setpoint_f\":175.0,"
+        "\"bench_pid_enabled\":true,"
+        "\"sensor_read_interval_ms\":2500,"
+        "\"static_ip\":\"192.168.1.55\","
+        "\"device_name\":\"Sauna-A\""
+        "}";
+    FleetConfigFile fleet;
+    bool ok = parseFleetConfigJson(json, fleet);
+
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_TRUE(fleet.layer.has_ceiling_sp);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 175.0f, fleet.layer.ceiling_setpoint_f);
+    TEST_ASSERT_FALSE(fleet.layer.has_bench_sp);
+    TEST_ASSERT_FALSE(fleet.layer.has_ceiling_en);
+    TEST_ASSERT_TRUE(fleet.layer.has_bench_en);
+    TEST_ASSERT_TRUE(fleet.layer.bench_pid_en);
+    TEST_ASSERT_TRUE(fleet.has_sensor_read_interval_ms);
+    TEST_ASSERT_EQUAL_UINT32(2500UL, fleet.sensor_read_interval_ms);
+    TEST_ASSERT_FALSE(fleet.has_serial_log_interval_ms);
+    TEST_ASSERT_TRUE(fleet.has_static_ip);
+    TEST_ASSERT_EQUAL_STRING("192.168.1.55", fleet.static_ip_str);
+    TEST_ASSERT_TRUE(fleet.has_device_name);
+    TEST_ASSERT_EQUAL_STRING("Sauna-A", fleet.device_name);
+}
+
+void test_parse_fleet_config_json_rejects_invalid_values_per_field(void)
+{
+    const char *json =
+        "{"
+        "\"ceiling_setpoint_f\":301.0,"
+        "\"bench_setpoint_f\":130.0,"
+        "\"ceiling_pid_enabled\":true,"
+        "\"sensor_read_interval_ms\":499,"
+        "\"serial_log_interval_ms\":1200,"
+        "\"static_ip\":\"999.1.1.1\","
+        "\"device_name\":\"Sauna-B\""
+        "}";
+    FleetConfigFile fleet;
+    bool ok = parseFleetConfigJson(json, fleet);
+
+    TEST_ASSERT_TRUE(ok);
+    TEST_ASSERT_TRUE(fleet.layer.has_ceiling_sp);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 301.0f, fleet.layer.ceiling_setpoint_f);
+    TEST_ASSERT_TRUE(fleet.layer.has_bench_sp);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 130.0f, fleet.layer.bench_setpoint_f);
+    TEST_ASSERT_TRUE(fleet.layer.has_ceiling_en);
+    TEST_ASSERT_TRUE(fleet.layer.ceiling_pid_en);
+    TEST_ASSERT_FALSE(fleet.has_sensor_read_interval_ms);
+    TEST_ASSERT_TRUE(fleet.has_serial_log_interval_ms);
+    TEST_ASSERT_EQUAL_UINT32(1200UL, fleet.serial_log_interval_ms);
+    TEST_ASSERT_FALSE(fleet.has_static_ip);
+    TEST_ASSERT_TRUE(fleet.has_device_name);
+    TEST_ASSERT_EQUAL_STRING("Sauna-B", fleet.device_name);
+}
+
+void test_apply_fleet_config_file_preserves_defaults_when_layer_empty(void)
+{
+    FleetRuntimeConfig runtime = defaultFleetRuntime();
+    FleetConfigFile fleet;
+
+    applyFleetConfigFile(runtime, fleet);
+
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 160.0f, runtime.sauna.ceiling_setpoint_f);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 120.0f, runtime.sauna.bench_setpoint_f);
+    TEST_ASSERT_FALSE(runtime.sauna.ceiling_pid_en);
+    TEST_ASSERT_FALSE(runtime.sauna.bench_pid_en);
+    TEST_ASSERT_EQUAL_UINT32(5000UL, runtime.sensor_read_interval_ms);
+    TEST_ASSERT_EQUAL_UINT32(10000UL, runtime.serial_log_interval_ms);
+    TEST_ASSERT_EQUAL_STRING("192.168.1.201", runtime.static_ip_str);
+    TEST_ASSERT_EQUAL_STRING("ESP32-S3", runtime.device_name);
+}
+
+void test_apply_fleet_config_file_updates_only_valid_parsed_fields(void)
+{
+    FleetRuntimeConfig runtime = defaultFleetRuntime();
+    FleetConfigFile fleet;
+    bool ok = parseFleetConfigJson(
+        "{"
+        "\"ceiling_setpoint_f\":180.0,"
+        "\"bench_setpoint_f\":10.0,"
+        "\"ceiling_pid_enabled\":true,"
+        "\"sensor_read_interval_ms\":3000,"
+        "\"static_ip\":\"192.168.1.88\""
+        "}",
+        fleet);
+
+    TEST_ASSERT_TRUE(ok);
+    applyFleetConfigFile(runtime, fleet);
+
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 180.0f, runtime.sauna.ceiling_setpoint_f);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 120.0f, runtime.sauna.bench_setpoint_f);
+    TEST_ASSERT_TRUE(runtime.sauna.ceiling_pid_en);
+    TEST_ASSERT_FALSE(runtime.sauna.bench_pid_en);
+    TEST_ASSERT_EQUAL_UINT32(3000UL, runtime.sensor_read_interval_ms);
+    TEST_ASSERT_EQUAL_UINT32(10000UL, runtime.serial_log_interval_ms);
+    TEST_ASSERT_EQUAL_STRING("192.168.1.88", runtime.static_ip_str);
+    TEST_ASSERT_EQUAL_STRING("ESP32-S3", runtime.device_name);
+}
+
 // =============================================================================
 // Scenario 4 — Config values survive simulated power cycles
 // =============================================================================
@@ -477,6 +607,11 @@ int main(int argc, char **argv)
     RUN_TEST(test_just_outside_boundary_rejected);
     RUN_TEST(test_partial_fleet_only_ceiling);
     RUN_TEST(test_pid_enable_flag);
+    RUN_TEST(test_parse_fleet_config_json_malformed_returns_false);
+    RUN_TEST(test_parse_fleet_config_json_partial_valid_fields_apply);
+    RUN_TEST(test_parse_fleet_config_json_rejects_invalid_values_per_field);
+    RUN_TEST(test_apply_fleet_config_file_preserves_defaults_when_layer_empty);
+    RUN_TEST(test_apply_fleet_config_file_updates_only_valid_parsed_fields);
 
     // Scenario 4: power cycle persistence
     RUN_TEST(test_power_cycle_idempotent);

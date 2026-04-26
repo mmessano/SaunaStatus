@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 
 // static constexpr avoids the anonymous-namespace-in-header ODR pitfall while
@@ -44,6 +45,48 @@ struct ConfigLayer {
     bool  has_bench_en       = false;
 };
 
+#ifndef SETPOINT_MIN_F
+#define SETPOINT_MIN_F 32.0f
+#endif
+#ifndef SETPOINT_MAX_F
+#define SETPOINT_MAX_F 300.0f
+#endif
+#ifndef SENSOR_READ_INTERVAL_MIN_MS
+#define SENSOR_READ_INTERVAL_MIN_MS 500UL
+#endif
+#ifndef SENSOR_READ_INTERVAL_MAX_MS
+#define SENSOR_READ_INTERVAL_MAX_MS 10000UL
+#endif
+#ifndef SERIAL_LOG_INTERVAL_MIN_MS
+#define SERIAL_LOG_INTERVAL_MIN_MS 1000UL
+#endif
+#ifndef SERIAL_LOG_INTERVAL_MAX_MS
+#define SERIAL_LOG_INTERVAL_MAX_MS 60000UL
+#endif
+
+static constexpr size_t STATIC_IP_STR_CAPACITY = 16;
+static constexpr size_t DEVICE_NAME_CAPACITY = 25;
+
+struct FleetConfigFile {
+    ConfigLayer layer;
+    unsigned long sensor_read_interval_ms = 0;
+    unsigned long serial_log_interval_ms  = 0;
+    bool has_sensor_read_interval_ms = false;
+    bool has_serial_log_interval_ms  = false;
+    bool has_static_ip = false;
+    bool has_device_name = false;
+    char static_ip_str[STATIC_IP_STR_CAPACITY] = "";
+    char device_name[DEVICE_NAME_CAPACITY] = "";
+};
+
+struct FleetRuntimeConfig {
+    SaunaConfig sauna;
+    unsigned long sensor_read_interval_ms = 0;
+    unsigned long serial_log_interval_ms  = 0;
+    char static_ip_str[STATIC_IP_STR_CAPACITY] = "";
+    char device_name[DEVICE_NAME_CAPACITY] = "";
+};
+
 // Merge one ConfigLayer into cfg. Range validation: setpoints must be 32-300 degrees F.
 inline void mergeConfigLayer(SaunaConfig &cfg, const ConfigLayer &layer) {
     if (layer.has_ceiling_sp && layer.ceiling_setpoint_f >= 32.0f && layer.ceiling_setpoint_f <= 300.0f)
@@ -52,6 +95,170 @@ inline void mergeConfigLayer(SaunaConfig &cfg, const ConfigLayer &layer) {
         cfg.bench_setpoint_f = layer.bench_setpoint_f;
     if (layer.has_ceiling_en) cfg.ceiling_pid_en = layer.ceiling_pid_en;
     if (layer.has_bench_en)   cfg.bench_pid_en   = layer.bench_pid_en;
+}
+
+inline bool isValidStaticIpString(const char *value) {
+    if (!value || !*value) return false;
+
+    int octets = 0;
+    const char *p = value;
+    while (*p) {
+        if (octets == 4) return false;
+        if (*p < '0' || *p > '9') return false;
+
+        unsigned int part = 0;
+        int digits = 0;
+        while (*p >= '0' && *p <= '9') {
+            part = part * 10u + static_cast<unsigned int>(*p - '0');
+            if (part > 255u) return false;
+            ++digits;
+            ++p;
+        }
+        if (digits == 0) return false;
+        ++octets;
+
+        if (*p == '.') {
+            ++p;
+            if (!*p) return false;
+        } else if (*p != '\0') {
+            return false;
+        }
+    }
+
+    return octets == 4;
+}
+
+static inline const char *findJsonKeyValue(const char *json, const char *key) {
+    if (!json || !key) return nullptr;
+    char needle[48];
+    snprintf(needle, sizeof(needle), "\"%s\":", key);
+    const char *p = strstr(json, needle);
+    if (!p) return nullptr;
+    p += strlen(needle);
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') ++p;
+    return p;
+}
+
+static inline bool extractJsonFloat(const char *json, const char *key, float &out) {
+    const char *p = findJsonKeyValue(json, key);
+    if (!p) return false;
+    char *end = nullptr;
+    float value = strtof(p, &end);
+    if (end == p) return false;
+    while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r') ++end;
+    if (*end != ',' && *end != '}' && *end != '\0') return false;
+    out = value;
+    return true;
+}
+
+static inline bool extractJsonUnsignedLong(const char *json, const char *key, unsigned long &out) {
+    const char *p = findJsonKeyValue(json, key);
+    if (!p || *p < '0' || *p > '9') return false;
+    char *end = nullptr;
+    unsigned long value = strtoul(p, &end, 10);
+    if (end == p) return false;
+    while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r') ++end;
+    if (*end != ',' && *end != '}' && *end != '\0') return false;
+    out = value;
+    return true;
+}
+
+static inline bool extractJsonBool(const char *json, const char *key, bool &out) {
+    const char *p = findJsonKeyValue(json, key);
+    if (!p) return false;
+    if (strncmp(p, "true", 4) == 0) {
+        const char *end = p + 4;
+        while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r') ++end;
+        if (*end != ',' && *end != '}' && *end != '\0') return false;
+        out = true;
+        return true;
+    }
+    if (strncmp(p, "false", 5) == 0) {
+        const char *end = p + 5;
+        while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r') ++end;
+        if (*end != ',' && *end != '}' && *end != '\0') return false;
+        out = false;
+        return true;
+    }
+    return false;
+}
+
+static inline bool extractJsonString(const char *json, const char *key, char *out, size_t out_len) {
+    const char *p = findJsonKeyValue(json, key);
+    if (!p || *p != '"' || out_len == 0) return false;
+    ++p;
+    size_t i = 0;
+    while (*p && *p != '"' && i < out_len - 1) out[i++] = *p++;
+    out[i] = '\0';
+    return *p == '"';
+}
+
+inline bool parseFleetConfigJson(const char *json, FleetConfigFile &out) {
+    out = FleetConfigFile{};
+    if (!json || !*json) return false;
+    if (!strchr(json, '{') || !strchr(json, '}')) return false;
+
+    if (extractJsonFloat(json, "ceiling_setpoint_f", out.layer.ceiling_setpoint_f)) {
+        out.layer.has_ceiling_sp = true;
+    }
+    if (extractJsonFloat(json, "bench_setpoint_f", out.layer.bench_setpoint_f)) {
+        out.layer.has_bench_sp = true;
+    }
+    if (extractJsonBool(json, "ceiling_pid_enabled", out.layer.ceiling_pid_en)) {
+        out.layer.has_ceiling_en = true;
+    }
+    if (extractJsonBool(json, "bench_pid_enabled", out.layer.bench_pid_en)) {
+        out.layer.has_bench_en = true;
+    }
+    {
+        unsigned long value = 0;
+        if (extractJsonUnsignedLong(json, "sensor_read_interval_ms", value) &&
+            value >= SENSOR_READ_INTERVAL_MIN_MS && value <= SENSOR_READ_INTERVAL_MAX_MS) {
+            out.sensor_read_interval_ms = value;
+            out.has_sensor_read_interval_ms = true;
+        }
+    }
+    {
+        unsigned long value = 0;
+        if (extractJsonUnsignedLong(json, "serial_log_interval_ms", value) &&
+            value >= SERIAL_LOG_INTERVAL_MIN_MS && value <= SERIAL_LOG_INTERVAL_MAX_MS) {
+            out.serial_log_interval_ms = value;
+            out.has_serial_log_interval_ms = true;
+        }
+    }
+    if (extractJsonString(json, "static_ip", out.static_ip_str, sizeof(out.static_ip_str))) {
+        if (isValidStaticIpString(out.static_ip_str)) {
+            out.has_static_ip = true;
+        } else {
+            out.static_ip_str[0] = '\0';
+        }
+    }
+    if (extractJsonString(json, "device_name", out.device_name, sizeof(out.device_name))) {
+        size_t len = strlen(out.device_name);
+        if (len > 0 && len < sizeof(out.device_name)) {
+            out.has_device_name = true;
+        } else {
+            out.device_name[0] = '\0';
+        }
+    }
+
+    return true;
+}
+
+inline void applyFleetConfigFile(FleetRuntimeConfig &runtime, const FleetConfigFile &fleet) {
+    mergeConfigLayer(runtime.sauna, fleet.layer);
+    if (fleet.has_sensor_read_interval_ms)
+        runtime.sensor_read_interval_ms = fleet.sensor_read_interval_ms;
+    if (fleet.has_serial_log_interval_ms)
+        runtime.serial_log_interval_ms = fleet.serial_log_interval_ms;
+    if (fleet.has_static_ip) {
+        strncpy(runtime.static_ip_str, fleet.static_ip_str, sizeof(runtime.static_ip_str) - 1);
+        runtime.static_ip_str[sizeof(runtime.static_ip_str) - 1] = '\0';
+    }
+    if (fleet.has_device_name) {
+        strncpy(runtime.device_name, fleet.device_name, sizeof(runtime.device_name) - 1);
+        runtime.device_name[sizeof(runtime.device_name) - 1] = '\0';
+    }
 }
 
 inline void buildConfigJson(const SaunaConfig& cfg, char* buf, size_t len) {
