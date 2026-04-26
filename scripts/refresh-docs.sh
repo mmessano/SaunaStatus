@@ -6,9 +6,9 @@
 #   bash scripts/refresh-docs.sh
 #
 # Steps:
-#   1. update-handoff.sh         — base HANDOFF.md regeneration
+#   1. update-checkpoint.sh      — base BACKLOG.md checkpoint regeneration
 #   2. claude --print audit      — full CLAUDE.md semantic audit
-#   3. claude --print extend     — AI open-issues + next-steps in HANDOFF.md
+#   3. claude --print extend     — AI checkpoint notes in BACKLOG.md
 #   4. claude --print skills     — extract uncaptured patterns → new skill files
 #   5. hook verify               — install and sanity-check local no-op hooks
 #   6. diff + confirm + commit
@@ -41,14 +41,14 @@ fi
 
 cd "$REPO"
 
-# ── Step 1: base HANDOFF.md regeneration ─────────────────────────────────────
+# ── Step 1: base BACKLOG.md checkpoint regeneration ──────────────────────────
 
-step 1 "Base HANDOFF.md regeneration (update-handoff.sh)"
+step 1 "Base BACKLOG.md checkpoint regeneration (update-checkpoint.sh)"
 
-SKIP_BUILD=1 bash "$REPO/scripts/update-handoff.sh" \
-    || die "update-handoff.sh failed — fix it before running refresh-docs.sh"
+bash "$REPO/scripts/update-checkpoint.sh" \
+    || die "update-checkpoint.sh failed — fix it before running refresh-docs.sh"
 
-log "HANDOFF.md regenerated."
+log "BACKLOG.md checkpoint refreshed."
 
 # ── Step 2: CLAUDE.md full audit ─────────────────────────────────────────────
 
@@ -149,12 +149,12 @@ fi
 echo "$UPDATED_CLAUDE" > "$REPO/CLAUDE.md"
 log "CLAUDE.md updated."
 
-# ── Step 3: HANDOFF.md AI extension ──────────────────────────────────────────
+# ── Step 3: BACKLOG.md AI checkpoint extension ───────────────────────────────
 
-step 3 "HANDOFF.md AI extension (claude --print)"
+step 3 "BACKLOG.md AI checkpoint extension (claude --print)"
 
 # Strip any existing AI sections from previous refresh runs
-HANDOFF_BASE="$(sed '/<!-- REFRESH-AI:START -->/,$ d' "$REPO/HANDOFF.md")"
+BACKLOG_BASE="$(sed '/<!-- REFRESH-AI:START -->/,$ d' "$REPO/BACKLOG.md")"
 
 # Collect context for the prompt
 RECENT_LOG="$(git log --oneline -20)"
@@ -171,27 +171,27 @@ done <<< "$RECENT_PLANS"
 
 EXTEND_PROMPT_FILE="$TMPDIR_REFRESH/extend_prompt.txt"
 cat > "$EXTEND_PROMPT_FILE" <<EXTEND_PROMPT_EOF
-You are extending HANDOFF.md for the SaunaStatus ESP32 project with AI-analyzed sections.
+You are extending the Session Checkpoint area in BACKLOG.md for the SaunaStatus ESP32 project.
 
 Output ONLY the two sections below — no explanation, no preamble.
 Start your output with exactly: <!-- REFRESH-AI:START -->
 End your output with exactly: <!-- REFRESH-AI:END -->
 
-## Section 1: Open Issues (AI Analysis)
+## Section 1: AI Analysis
 
-Heading: ## AI Analysis: Open Issues
+Heading: ### AI Analysis
 
-Produce a prioritized list of open issues based on:
+Produce a concise prioritized list based on:
 - TODOs/FIXMEs in source (listed below)
 - Any security work that appears incomplete based on commit history
-- Any build failures or test failures mentioned in the current HANDOFF.md
+- Any stale tracked documentation assumptions visible in the current BACKLOG.md checkpoint
 - Any items flagged as STALE in CLAUDE.md (pass through if found)
 
 Format each issue as: **[PRIORITY] File:line** — description
 
 ## Section 2: Recommended Next Steps
 
-Heading: ## AI Analysis: Recommended Next Steps
+Heading: ### Recommended Next Steps
 
 Based on the recent commit patterns and plan files, produce an ordered list of recommended
 next actions. Be specific — reference files, functions, or commits where relevant.
@@ -219,16 +219,16 @@ ${TODOS_FOUND:-"(none found)"}
 ### Recent plan files
 ${PLAN_CONTENT:-"(none)"}
 
-### Current HANDOFF.md (for context — do not reproduce)
-$(echo "$HANDOFF_BASE" | tail -80)
+### Current BACKLOG.md (for context — do not reproduce)
+$(echo "$BACKLOG_BASE" | tail -80)
 EXTEND_PROMPT_EOF
 
-log "Running claude --print for HANDOFF.md extension (this may take 30-60s)..."
+log "Running claude --print for BACKLOG.md checkpoint extension (this may take 30-60s)..."
 AI_SECTIONS="$(claude --print "$(cat "$EXTEND_PROMPT_FILE")" < /dev/null)" \
-    || die "claude --print failed for HANDOFF.md extension"
+    || die "claude --print failed for BACKLOG.md checkpoint extension"
 
 if [[ -z "$AI_SECTIONS" ]]; then
-    die "Claude returned empty output for HANDOFF.md extension"
+    die "Claude returned empty output for BACKLOG.md checkpoint extension"
 fi
 
 if ! echo "$AI_SECTIONS" | grep -q "REFRESH-AI:START"; then
@@ -237,12 +237,12 @@ fi
 
 # Write: base content + AI sections
 {
-    echo "$HANDOFF_BASE"
+    echo "$BACKLOG_BASE"
     echo ""
     echo "$AI_SECTIONS"
-} > "$REPO/HANDOFF.md"
+} > "$REPO/BACKLOG.md"
 
-log "HANDOFF.md extended with AI sections."
+log "BACKLOG.md checkpoint extended with AI sections."
 
 # ── Step 4: skill extraction ──────────────────────────────────────────────────
 
@@ -434,7 +434,7 @@ git diff --stat
 echo ""
 
 # Stage repo files (exclude compile_commands.json)
-git add CLAUDE.md HANDOFF.md 2>/dev/null || true
+git add CLAUDE.md BACKLOG.md 2>/dev/null || true
 if [[ -n "$NEW_FILES" ]]; then
     while IFS= read -r nf; do
         [[ -z "$nf" ]] && continue

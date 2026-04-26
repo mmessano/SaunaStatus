@@ -41,7 +41,8 @@ This repo installs no-op local hooks so commits do not mutate tracked files. Ins
 bash scripts/install-hooks.sh
 ```
 
-Use `bash scripts/update-handoff.sh` only when you explicitly want to refresh `HANDOFF.md` for a checkpoint or handoff.
+Use `bash scripts/update-checkpoint.sh` to refresh the tracked `BACKLOG.md` checkpoint block.
+Use `bash scripts/update-handoff.sh` only when you explicitly want a local-only `HANDOFF.md` snapshot.
 
 ## Skills
 

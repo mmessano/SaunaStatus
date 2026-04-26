@@ -90,3 +90,6 @@ Thumbs.db
 .parallel-tdd/
 .codex
 compile_commands.json
+
+# Local-only checkpoint artifact. Regenerate on demand; never commit.
+HANDOFF.md

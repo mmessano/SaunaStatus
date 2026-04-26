@@ -1,5 +1,8 @@
 # Autonomous Documentation Maintenance System — Implementation Plan
 
+> Note: current repo policy has since moved the tracked checkpoint surface to `BACKLOG.md`.
+> `HANDOFF.md` is now a local ignored artifact generated only on demand.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build `scripts/refresh-docs.sh` — an explicitly-triggered pipeline that audits CLAUDE.md against the live codebase, appends AI-analyzed issues/next-steps to HANDOFF.md, extracts new skills from git history, verifies the repo-managed local hooks, and commits all changes after a diff + confirmation prompt.

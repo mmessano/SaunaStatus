@@ -10,7 +10,7 @@ mkdir -p "$HOOKS_DIR"
 
 cat > "$PRE_COMMIT_HOOK" <<'EOF'
 #!/usr/bin/env bash
-# HANDOFF.md is generated manually when preparing a checkpoint or handoff.
+# Checkpoint artifacts are generated explicitly, not during commit.
 exit 0
 EOF
 chmod +x "$PRE_COMMIT_HOOK"

@@ -4,6 +4,9 @@
 **Project:** SaunaStatus (ESP32 sauna automation)
 **Status:** Approved
 
+> Note: current repo policy has since moved the tracked checkpoint surface to `BACKLOG.md`.
+> `HANDOFF.md` is now a local ignored artifact generated only on demand.
+
 ---
 
 ## Overview
