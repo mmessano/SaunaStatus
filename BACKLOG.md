@@ -1,5 +1,13 @@
 # Backlog
 
+## Session Checkpoint
+
+- Last policy change: `HANDOFF.md` is now manual. Refresh it explicitly with `bash scripts/update-handoff.sh` when preparing a checkpoint, handoff, or release note snapshot.
+- Current validation baseline:
+  - `pio test -e native`
+  - `pio run -e lb_esp32s3 -t buildprog`
+- Current highest-value follow-up: finish the remaining documentation backlog in `docs/testing.md` and keep route/config inventories from drifting.
+
 ## P1
 
 - Restore and document a working local validation path for PlatformIO. `pio test -e native` was broken in this workspace because the `~/.platformio/penv` virtualenv no longer matched the system Python version.

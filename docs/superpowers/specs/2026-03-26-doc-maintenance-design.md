@@ -8,7 +8,7 @@
 
 ## Overview
 
-A shell script (`scripts/refresh-docs.sh`) that performs a full documentation refresh when explicitly triggered. It audits CLAUDE.md against the actual codebase, extends HANDOFF.md with open issues and next steps, extracts uncaptured lessons from git history into skill files, verifies hooks, then shows a diff summary and asks for confirmation before committing.
+A shell script (`scripts/refresh-docs.sh`) that performs a full documentation refresh when explicitly triggered. It audits CLAUDE.md against the actual codebase, extends HANDOFF.md with open issues and next steps, extracts uncaptured lessons from git history into skill files, verifies the repo-managed local hooks, then shows a diff summary and asks for confirmation before committing.
 
 ---
 
@@ -21,7 +21,7 @@ Step 1  update-handoff.sh          Base HANDOFF.md regeneration (existing script
 Step 2  claude -p "audit-claude"   Full audit of CLAUDE.md vs codebase
 Step 3  claude -p "extend-handoff" Append open issues + next steps to HANDOFF.md
 Step 4  claude -p "extract-skills" Scan git log → create new skill files
-Step 5  hook-verify                Dry-run post-commit hook, report PASS/FAIL
+Step 5  hook-verify                Reinstall local no-op hooks, report PASS/FAIL
 Step 6  diff + confirm             Print summary, ask y/n, git commit
 ```
 
@@ -85,10 +85,10 @@ The prompt receives the list of existing skill file paths to avoid duplication.
 ## Step 5: Hook Verification
 
 ```bash
-SKIP_BUILD=1 bash scripts/update-handoff.sh
+bash scripts/install-hooks.sh
 ```
 
-Checks: exit code 0, HANDOFF.md written, no `set -e` failures. Reports `PASS` or `FAIL` with stderr on failure. Only one hook exists currently (`post-commit`).
+Checks: exit code 0, `.git/hooks/pre-commit` and `.git/hooks/post-commit` both exist and are executable. Reports `PASS` or `FAIL` with stderr on failure. Both hooks are intentionally no-ops so commits do not mutate `HANDOFF.md`.
 
 ---
 

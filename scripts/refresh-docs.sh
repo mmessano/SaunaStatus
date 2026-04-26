@@ -10,7 +10,7 @@
 #   2. claude --print audit      — full CLAUDE.md semantic audit
 #   3. claude --print extend     — AI open-issues + next-steps in HANDOFF.md
 #   4. claude --print skills     — extract uncaptured patterns → new skill files
-#   5. hook verify               — dry-run pre-commit handoff hook
+#   5. hook verify               — install and sanity-check local no-op hooks
 #   6. diff + confirm + commit
 
 set -uo pipefail
@@ -378,20 +378,22 @@ fi
 
 # ── Step 5: hook verification ─────────────────────────────────────────────────
 
-step 5 "Pre-commit hook verification"
+step 5 "Local hook installation verification"
 
-log "Running pre-commit hook in dry-run mode (SKIP_BUILD=1)..."
-# Save AI-extended HANDOFF.md — update-handoff.sh unconditionally overwrites it
-cp "$REPO/HANDOFF.md" "$TMPDIR_REFRESH/handoff_backup.md"
-HOOK_OUT="$(SKIP_BUILD=1 bash "$REPO/scripts/pre-commit-handoff.sh" 2>&1)" \
+log "Installing repo-managed hooks..."
+HOOK_OUT="$(bash "$REPO/scripts/install-hooks.sh" 2>&1)" \
     && HOOK_EXIT=0 || HOOK_EXIT=$?
-# Restore the AI-extended version
-mv "$TMPDIR_REFRESH/handoff_backup.md" "$REPO/HANDOFF.md"
 
 if [[ "$HOOK_EXIT" -eq 0 ]]; then
-    log "Hook PASS — pre-commit handoff hook exits 0."
+    PRE_HOOK="$(git rev-parse --git-path hooks)/pre-commit"
+    POST_HOOK="$(git rev-parse --git-path hooks)/post-commit"
+    if [[ -x "$PRE_HOOK" && -x "$POST_HOOK" ]]; then
+        log "Hook PASS — install-hooks.sh refreshed executable pre-commit/post-commit no-op hooks."
+    else
+        warn "Hook FAIL — install-hooks.sh exited 0 but expected hook files are missing or not executable."
+    fi
 else
-    warn "Hook FAIL (exit $HOOK_EXIT) — hook is broken but continuing refresh."
+    warn "Hook FAIL (exit $HOOK_EXIT) — install-hooks.sh is broken but continuing refresh."
     echo "$HOOK_OUT" | sed 's/^/    /' >&2
 fi
 

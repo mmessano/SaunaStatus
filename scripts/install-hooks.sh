@@ -10,17 +10,18 @@ mkdir -p "$HOOKS_DIR"
 
 cat > "$PRE_COMMIT_HOOK" <<'EOF'
 #!/usr/bin/env bash
-exec bash "$(git rev-parse --show-toplevel)/scripts/pre-commit-handoff.sh"
+# HANDOFF.md is generated manually when preparing a checkpoint or handoff.
+exit 0
 EOF
 chmod +x "$PRE_COMMIT_HOOK"
 
 cat > "$POST_COMMIT_HOOK" <<'EOF'
 #!/usr/bin/env bash
-# HANDOFF.md is generated and staged by the pre-commit hook.
+# Reserved for local automation. Keep as a no-op so commits do not dirty the tree.
 exit 0
 EOF
 chmod +x "$POST_COMMIT_HOOK"
 
 echo "Installed hooks in $HOOKS_DIR"
-echo "  pre-commit -> scripts/pre-commit-handoff.sh"
+echo "  pre-commit -> no-op"
 echo "  post-commit -> no-op"
