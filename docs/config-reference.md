@@ -40,7 +40,16 @@ Set via `-D` flags in `platformio.ini` under `build_flags`. Values in `src/main.
 | `AUTH_MAX_USERS` | `5` | Maximum stored users |
 | `AUTH_MIN_PASS_LEN` | `8` | Minimum password length |
 | `AUTH_MAX_PASS_LEN` | `72` | Maximum password length (bounds SHA-256 buffer) |
+| `AUTH_MIN_USER_LEN` | `1` | Minimum username length |
+| `AUTH_MAX_USER_LEN` | `32` | Maximum username length |
+| `AUTH_PBKDF2_ITERATIONS` | `10000` | PBKDF2-SHA-256 iterations for newly created or updated passwords |
+| `AUTH_RATE_LIMIT_MAX_FAILURES` | `5` | Failed login attempts allowed within the rate-limit window before lockout |
+| `AUTH_RATE_LIMIT_WINDOW_MS` | `60000UL` | Sliding failure window for login rate limiting (ms) |
+| `AUTH_RATE_LIMIT_LOCKOUT_MS` | `300000UL` | Login lockout duration after too many failures (ms) |
+| `AUTH_RATE_LIMIT_SLOTS` | `8` | Distinct IP slots tracked by the in-memory login rate limiter |
+| `OTA_ALLOWED_HOSTS` | `""` | Comma-separated OTA hostname allowlist; empty string disables OTA |
 | `OTA_MAX_BOOT_FAILURES` | `3` | Consecutive boot failures before rollback |
+| `OVERHEAT_CLEAR_HYSTERESIS_C` | `10.0f` | Clear band used by portable `tickOverheat()` below `TEMP_LIMIT_C`; note `checkOverheat()` in `sensors.cpp` does not apply this hysteresis |
 | `FIRMWARE_VERSION` | `"2.0.0"` | Firmware version string for OTA comparison |
 
 Commented-out override examples are available in `platformio.ini` under `build_flags`.
@@ -60,9 +69,16 @@ Uploaded with the filesystem image (`pio run -t uploadfs`). Overrides Tier 1 for
 | `sensor_read_interval_ms` | uint | 500–10000 | Sensor read and WebSocket broadcast interval (ms) |
 | `serial_log_interval_ms` | uint | 1000–60000 | Serial status log interval (ms) |
 | `static_ip` | string | valid IPv4 | Device static IP (requires restart to take effect) |
-| `device_name` | string | 1–24 chars, `[A-Za-z0-9_-]` | Device name used as MQTT client ID prefix (requires restart) |
+| `device_name` | string | 1–24 chars | Device name used as MQTT client ID prefix (requires restart) |
 
-Values outside the valid range are silently ignored; the Tier 1 default remains in effect.
+Validation semantics:
+
+- If LittleFS is unavailable at boot, the entire Tier 2 layer is skipped.
+- If `/config.json` is missing, the entire Tier 2 layer is skipped.
+- If `/config.json` is malformed, the entire Tier 2 layer is skipped.
+- If a specific key is present but invalid, only that field is ignored; other valid fields in the same file still apply.
+- Tier 3 NVS values still override any valid Tier 2 values later in boot.
+- Tier 2 `device_name` only checks non-empty length `< 25`; the stricter `[A-Za-z0-9_-]` validation is only enforced by Tier 3 `/config/save`.
 
 #### Example `/config.json`:
 
@@ -83,16 +99,16 @@ Values outside the valid range are silently ignored; the Tier 1 default remains 
 
 ## Tier 3: Per-Device NVS
 
-Namespace: `sauna`. Written by HTTP `/setpoint`, `/pid`, `/motor?cmd=setopen`, and `/config/save` endpoints, and MQTT subscription callbacks. Each key is guarded by `prefs.isKey()` so a missing NVS entry never silently reverts a Tier 2 value.
+Namespace: `sauna`. Written by HTTP `POST /setpoint`, `POST /pid`, `POST /motor?cmd=setopen`, and `POST /config/save` endpoints, and MQTT subscription callbacks. Each key is guarded by `prefs.isKey()` so a missing NVS entry never silently reverts a Tier 2 value.
 
 | NVS Key | Type | Units | Description | Written By |
 |---|---|---|---|---|
-| `csp` | float | °C | Ceiling setpoint (stored in °C, API accepts/returns °F) | `/setpoint?ceiling=`, `/config/save`, MQTT `sauna/ceiling_setpoint/set` |
-| `bsp` | float | °C | Bench setpoint | `/setpoint?bench=`, `/config/save`, MQTT `sauna/bench_setpoint/set` |
-| `cen` | bool | — | Ceiling PID enabled | `/pid?ceiling=`, `/config/save`, MQTT `sauna/ceiling_pid/set` |
-| `ben` | bool | — | Bench PID enabled | `/pid?bench=`, `/config/save`, MQTT `sauna/bench_pid/set` |
-| `omx` | int | steps | Outflow motor calibrated full-open step count | `/motor?motor=outflow&cmd=setopen` |
-| `imx` | int | steps | Inflow motor calibrated full-open step count | `/motor?motor=inflow&cmd=setopen` |
+| `csp` | float | °C | Ceiling setpoint (stored in °C, API accepts/returns °F) | `POST /setpoint?ceiling=`, `POST /config/save`, MQTT `sauna/ceiling_setpoint/set` |
+| `bsp` | float | °C | Bench setpoint | `POST /setpoint?bench=`, `POST /config/save`, MQTT `sauna/bench_setpoint/set` |
+| `cen` | bool | — | Ceiling PID enabled | `POST /pid?ceiling=`, `POST /config/save`, MQTT `sauna/ceiling_pid/set` |
+| `ben` | bool | — | Bench PID enabled | `POST /pid?bench=`, `POST /config/save`, MQTT `sauna/bench_pid/set` |
+| `omx` | int | steps | Outflow motor calibrated full-open step count | `POST /motor?motor=outflow&cmd=setopen` |
+| `imx` | int | steps | Inflow motor calibrated full-open step count | `POST /motor?motor=inflow&cmd=setopen` |
 | `sri` | uint | ms | Sensor read interval | `/config/save` |
 | `slg` | uint | ms | Serial log interval | `/config/save` |
 | `sip` | string | — | Static IP address (requires restart) | `/config/save` |

@@ -53,6 +53,7 @@ Serves the web UI from LittleFS.
 |--------|---------------|-------------------------|
 | `200`  | `text/html`   | `/index.html` from LittleFS (streamed) |
 | `500`  | `text/plain`  | `index.html not found`  |
+| `503`  | `text/plain`  | `LittleFS unavailable — repair or upload filesystem image` |
 
 #### Example
 
@@ -62,7 +63,7 @@ GET http://192.168.1.200/
 
 ---
 
-### `GET /log`
+### `POST /log`
 
 Triggers an immediate write of all current sensor and control state to InfluxDB (both `sauna_status` and `sauna_control` measurements). Normally writes happen on a 60-second timer; this forces an out-of-cycle write.
 
@@ -76,7 +77,7 @@ Triggers an immediate write of all current sensor and control state to InfluxDB 
 #### Example
 
 ```
-GET http://192.168.1.200/log
+POST http://192.168.1.200/log
 ```
 
 ---
@@ -125,7 +126,7 @@ GET http://192.168.1.200/history?range=24h
 
 ---
 
-### `GET /setpoint`
+### `POST /setpoint`
 
 Sets one or both PID temperature setpoints. Accepts values in degrees Fahrenheit. Values outside 32–300 °F are silently ignored (the existing setpoint is unchanged). Persists to NVS immediately.
 
@@ -151,14 +152,14 @@ Saves `csp` (ceiling setpoint, in °C) and `bsp` (bench setpoint, in °C) to NVS
 #### Examples
 
 ```
-GET http://192.168.1.200/setpoint?ceiling=160
-GET http://192.168.1.200/setpoint?bench=120
-GET http://192.168.1.200/setpoint?ceiling=160&bench=120
+POST http://192.168.1.200/setpoint?ceiling=160
+POST http://192.168.1.200/setpoint?bench=120
+POST http://192.168.1.200/setpoint?ceiling=160&bench=120
 ```
 
 ---
 
-### `GET /pid`
+### `POST /pid`
 
 Enables or disables one or both PID controllers. Persists to NVS immediately.
 
@@ -184,14 +185,14 @@ Saves `cen` and `ben` booleans to NVS namespace `sauna`.
 #### Examples
 
 ```
-GET http://192.168.1.200/pid?ceiling=1
-GET http://192.168.1.200/pid?bench=0
-GET http://192.168.1.200/pid?ceiling=1&bench=1
+POST http://192.168.1.200/pid?ceiling=1
+POST http://192.168.1.200/pid?bench=0
+POST http://192.168.1.200/pid?ceiling=1&bench=1
 ```
 
 ---
 
-### `GET /motor`
+### `POST /motor`
 
 Commands a stepper motor. All commands respond immediately; motor movement runs asynchronously in the main loop.
 
@@ -235,11 +236,11 @@ Commands a stepper motor. All commands respond immediately; motor movement runs 
 #### Examples
 
 ```
-GET http://192.168.1.200/motor?motor=outflow&cmd=open
-GET http://192.168.1.200/motor?motor=inflow&cmd=cw&steps=128
-GET http://192.168.1.200/motor?motor=outflow&cmd=zero
-GET http://192.168.1.200/motor?motor=outflow&cmd=setopen
-GET http://192.168.1.200/motor?motor=inflow&cmd=close
+POST http://192.168.1.200/motor?motor=outflow&cmd=open
+POST http://192.168.1.200/motor?motor=inflow&cmd=cw&steps=128
+POST http://192.168.1.200/motor?motor=outflow&cmd=zero
+POST http://192.168.1.200/motor?motor=outflow&cmd=setopen
+POST http://192.168.1.200/motor?motor=inflow&cmd=close
 ```
 
 ---
@@ -254,6 +255,7 @@ Serves the configuration portal UI from LittleFS.
 |--------|--------------|------|
 | `200`  | `text/html`  | `/config.html` from LittleFS (streamed) |
 | `500`  | `text/plain` | `config.html not found — upload filesystem image` |
+| `503`  | `text/plain` | `LittleFS unavailable — repair or upload filesystem image` |
 
 ---
 
@@ -402,7 +404,7 @@ POST http://192.168.1.200/ota/update?manifest=http://192.168.1.10/firmware/manif
 
 ---
 
-### `GET /delete/status`
+### `DELETE /delete/status`
 
 Deletes all data in the `sauna_status` measurement from InfluxDB (time range `1970-01-01` to `2099-12-31`).
 
@@ -416,12 +418,12 @@ Deletes all data in the `sauna_status` measurement from InfluxDB (time range `19
 #### Example
 
 ```
-GET http://192.168.1.200/delete/status
+DELETE http://192.168.1.200/delete/status
 ```
 
 ---
 
-### `GET /delete/control`
+### `DELETE /delete/control`
 
 Deletes all data in the `sauna_control` measurement from InfluxDB (same time range as `/delete/status`).
 
@@ -435,8 +437,170 @@ Deletes all data in the `sauna_control` measurement from InfluxDB (same time ran
 #### Example
 
 ```
-GET http://192.168.1.200/delete/control
+DELETE http://192.168.1.200/delete/control
 ```
+
+---
+
+### `GET /auth/login`
+
+Serves the login page from LittleFS.
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `text/html`  | `/login.html` from LittleFS (streamed) |
+| `404`  | `text/plain` | `login.html not found` |
+| `503`  | `text/plain` | `LittleFS unavailable — repair or upload filesystem image` |
+
+---
+
+### `POST /auth/login`
+
+Authenticates a local or adapter-backed user and returns a bearer token. Login is IP-rate-limited.
+
+**Content-Type:** `application/json`
+
+#### Request Body
+
+```json
+{
+  "username": "admin",
+  "password": "changeme1"
+}
+```
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"token":"<64 hex chars>","expires_in":3600,"username":"admin","role":"admin"}` |
+| `400`  | `application/json` | `{"error":"no body"}` or `{"error":"bad json"}` |
+| `401`  | `application/json` | `{"error":"invalid credentials"}` |
+| `429`  | `application/json` | `{"error":"too many attempts, try again later"}` |
+
+---
+
+### `POST /auth/logout`
+
+Invalidates the current bearer token.
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"ok":true}` |
+| `401`  | `application/json` | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+
+---
+
+### `GET /auth/status`
+
+Returns the authenticated session identity and role for the provided bearer token.
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"valid":true,"username":"admin","role":"admin"}` |
+| `401`  | `application/json` | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+
+---
+
+### `GET /users`
+
+Admin-only. Returns the current stored users.
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `[{"username":"admin","role":"admin","protected":true}, ...]` |
+| `401`  | `application/json` | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+| `403`  | `application/json` | `{"error":"forbidden"}` |
+
+---
+
+### `POST /users`
+
+Admin-only. Creates a user with role `admin` or `viewer`.
+
+**Content-Type:** `application/json`
+
+#### Request Body
+
+```json
+{
+  "username": "viewer1",
+  "password": "password123",
+  "role": "viewer"
+}
+```
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"ok":true}` |
+| `400`  | `application/json` | `{"error":"no body"}`, `{"error":"bad json"}`, `{"error":"invalid role"}`, `{"error":"invalid username"}`, or `{"error":"password too short"}` |
+| `401`  | `application/json` | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+| `403`  | `application/json` | `{"error":"forbidden"}` |
+| `409`  | `application/json` | `{"error":"user limit reached"}` or `{"error":"username taken"}` |
+
+---
+
+### `DELETE /users`
+
+Admin-only. Deletes a user by query parameter.
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `username` | string | Yes | User to remove |
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"ok":true}` |
+| `400`  | `application/json` | `{"error":"missing username"}` |
+| `401`  | `application/json` | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+| `403`  | `application/json` | `{"error":"forbidden"}` or `{"error":"cannot delete emergency admin"}` |
+| `404`  | `application/json` | `{"error":"user not found"}` |
+
+---
+
+### `PUT /users`
+
+Admin-only. Changes a user's password.
+
+**Content-Type:** `application/json`
+
+#### Query Parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `username` | string | Yes | User whose password should be changed |
+
+#### Request Body
+
+```json
+{
+  "password": "newpassword123"
+}
+```
+
+#### Response
+
+| Status | Content-Type | Body |
+|--------|--------------|------|
+| `200`  | `application/json` | `{"ok":true}` |
+| `400`  | `application/json` | `{"error":"missing fields"}`, `{"error":"bad json"}`, or `{"error":"password too short"}` |
+| `401`  | `application/json` | `{"error":"unauthorized"}` or `{"error":"token_invalid"}` |
+| `403`  | `application/json` | `{"error":"forbidden"}` |
+| `404`  | `application/json` | `{"error":"user not found"}` |
 
 ---
 
@@ -665,7 +829,7 @@ All sensors have `state_class: measurement` and `state_topic: sauna/state`.
 
 **Endpoint:** `INFLUXDB_URL` from `secrets.h` (default `http://192.168.1.125:30115`)
 **Org/Bucket/Token:** defined in `secrets.h`
-**Write Interval:** every 60,000 ms (60 seconds), plus on-demand via `GET /log`
+**Write Interval:** every 60,000 ms (60 seconds), plus on-demand via `POST /log`
 
 Both measurements receive the same two tags:
 

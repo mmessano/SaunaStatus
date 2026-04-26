@@ -16,7 +16,9 @@ src/
 ├── sensors.h         32 lines  stoveReading() inline (natively testable); readSensors()/checkOverheat() declared (Arduino-only)
 ├── sensors.cpp      103 lines  readSensors() — DHT21×2, MAX31865, INA260; checkOverheat() rising-edge state machine
 ├── web.h             82 lines  buildJson() inline (natively testable); all handle*() HTTP and webSocketEvent() declared
-├── web.cpp          937 lines  HTTP route handlers, WebSocket event handler, buildJsonFull() calls
+├── web_internal.h     9 lines  Shared Arduino-only internal helpers for split web translation units
+├── web.cpp          791 lines  Core HTTP handlers, config/OTA routes, WebSocket event handler, buildJsonFull() calls
+├── web_auth.cpp     182 lines  Auth/login/logout/status and user-management HTTP handlers
 ├── mqtt.h            20 lines  mqttConnect/Callback/PublishState/PublishDiscovery declared (Arduino-only)
 ├── mqtt.cpp         195 lines  MQTT lifecycle, HA Discovery, sauna/state publish, control topic subscriptions
 ├── influx.h          21 lines  writeInflux() and logAccessEvent() declared (Arduino-only)
@@ -36,7 +38,11 @@ include/
 
 **`src/sensors.h/.cpp`** — `stoveReading()` inline in header (natively testable); returns `stove_temp` or ceiling/bench average fallback. `readSensors()` reads all sensors, applies `||` rule for `last_ok_ms`. `checkOverheat()` rising-edge state machine; motor drive is inside this function. Note: `checkOverheat()` has no hysteresis — `tickOverheat()` in `sauna_logic.h` uses `OVERHEAT_CLEAR_HYSTERESIS_C = 10.0f`.
 
-**`src/web.h/.cpp`** — `buildJson()` inline in header (natively testable). All `handle*()` HTTP handlers and `webSocketEvent()`.
+**`src/web.h`** — `buildJson()` inline in header (natively testable). Public declarations for all `handle*()` HTTP handlers and `webSocketEvent()`.
+
+**`src/web.cpp`** — Core HTTP handlers, config/OTA routes, WebSocket auth/broadcast flow, and filesystem page serving.
+
+**`src/web_auth.cpp`** — Auth/login/logout/status routes plus admin-only user CRUD/password-change handlers.
 
 **`src/auth_logic.h`** — Header-only pure-C++. Token sessions (64 chars, 1-hour TTL, 10 concurrent), PBKDF2 passwords (10000 iterations) with constant-time compare, rate limiting (5 failures per 60 s window → 5-min lockout, 8 tracked slots), adapter-first login fallback.
 
@@ -88,7 +94,14 @@ Threshold: `STALE_THRESHOLD_MS = 10000UL`. Stale if `last_ok_ms == 0` (never rea
 | `config.html` | `GET /config` | Configuration portal page |
 | `config.json` | Layer 2 config | Fleet defaults (read by `loadLittleFSConfig()`) |
 
-`Cache-Control: no-store` on all HTML pages. `LittleFS.begin(true)` formats partition on first boot.
+`Cache-Control: no-store` on all HTML pages. `LittleFS.begin(false)` preserves the filesystem on mount failure; if the mount fails, the device runs in degraded mode with LittleFS-backed pages and fleet `/config.json` disabled until the filesystem is repaired and re-uploaded.
+
+Fleet `/config.json` boot semantics:
+
+- missing file: Tier 2 is skipped and built-in defaults remain active
+- malformed JSON: Tier 2 is skipped and built-in defaults remain active
+- valid file with one bad field: only that field is ignored; other valid fields still apply
+- later NVS loads still override any valid fleet defaults
 
 ## platformio.ini Structure
 
@@ -105,7 +118,7 @@ Three environments:
 
 → See `docs/api-reference.md` for `/ota/status` and `/ota/update` route details.
 
-Flow: fetch manifest → parse version → compare to `FIRMWARE_VERSION` → stream binary → reboot. Refuses downgrades and same-version re-flashes. `OTA_ALLOWED_HOSTS` (default `""` = any host) restricts which manifest hosts are accepted.
+Flow: fetch manifest → parse version → compare to `FIRMWARE_VERSION` → stream binary → reboot. Refuses downgrades and same-version re-flashes. `OTA_ALLOWED_HOSTS` is a comma-separated hostname allowlist; the default `""` disables OTA until one or more permitted hosts are configured.
 
 Boot health: `otaCheckBootHealth()` increments `boot_fail` in NVS on every boot. `otaMarkBootSuccessful()` resets it after WiFi connects. Rolls back if `boot_fail >= OTA_MAX_BOOT_FAILURES`. In-progress download tracked via NVS keys `ota_ip` (bool), `ota_exp` (expected bytes), `ota_wrt` (written bytes) — all cleared on successful flash or rollback. `FIRMWARE_VERSION` is defined in `platformio.ini`.
 
