@@ -91,8 +91,8 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ "$RUN_BUILD" == "1" ]]; then
-    log "Running PlatformIO build (pio run -t build -e lb_esp32s3)..."
-    if (cd "$REPO" && pio run -t build -e lb_esp32s3 >"$BUILD_LOG_FILE" 2>&1); then
+    log "Running PlatformIO build (pio run -e lb_esp32s3 -t buildprog)..."
+    if (cd "$REPO" && pio run -e lb_esp32s3 -t buildprog >"$BUILD_LOG_FILE" 2>&1); then
         BUILD_EXIT=0
     else
         BUILD_EXIT=$?
@@ -205,7 +205,7 @@ ${RECENT_STATS}
 
 ## Current State
 
-### Build — \`pio run -t build -e lb_esp32s3\`
+### Build — \`pio run -e lb_esp32s3 -t buildprog\`
 
 **Status**: ${BUILD_STATUS}
 
@@ -382,7 +382,7 @@ cat <<'NEXT_STATIC'
 
 **Quick commands:**
 ```bash
-pio run -t build         # compile-only (safe, no upload)
+pio run -e lb_esp32s3 -t buildprog  # compile-only (safe, no upload)
 pio run -t upload        # firmware only
 pio run -t uploadfs      # filesystem only (web UI + config.json)
 pio test -e native       # all native unit tests (no device needed)
