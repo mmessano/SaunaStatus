@@ -17,8 +17,11 @@ src/
 ├── sensors.cpp      103 lines  readSensors() — DHT21×2, MAX31865, INA260; checkOverheat() rising-edge state machine
 ├── web.h             82 lines  buildJson() inline (natively testable); all handle*() HTTP and webSocketEvent() declared
 ├── web_internal.h     9 lines  Shared Arduino-only internal helpers for split web translation units
-├── web.cpp          791 lines  Core HTTP handlers, config/OTA routes, WebSocket event handler, buildJsonFull() calls
+├── web.cpp          299 lines  Core HTTP handlers (root, motor, pid, setpoint, history, log, delete) and LittleFS guard
 ├── web_auth.cpp     182 lines  Auth/login/logout/status and user-management HTTP handlers
+├── web_config.cpp   228 lines  Configuration portal HTTP handlers (page, get, save with atomic validate-then-apply)
+├── web_ota.cpp      194 lines  OTA status and manifest-driven firmware update with SHA-256 verification
+├── web_ws.cpp       103 lines  WebSocket event handler, authenticated broadcast, and auth timeout sweep
 ├── mqtt.h            20 lines  mqttConnect/Callback/PublishState/PublishDiscovery declared (Arduino-only)
 ├── mqtt.cpp         195 lines  MQTT lifecycle, HA Discovery, sauna/state publish, control topic subscriptions
 ├── influx.h          21 lines  writeInflux() and logAccessEvent() declared (Arduino-only)
@@ -40,9 +43,15 @@ include/
 
 **`src/web.h`** — `buildJson()` inline in header (natively testable). Public declarations for all `handle*()` HTTP handlers and `webSocketEvent()`.
 
-**`src/web.cpp`** — Core HTTP handlers, config/OTA routes, WebSocket auth/broadcast flow, and filesystem page serving.
+**`src/web.cpp`** — Core HTTP handlers (root, delete, motor, pid, setpoint, history, log) and the shared `ensureLittleFsMounted()` guard. Config, OTA, WebSocket, and auth handlers live in sibling translation units.
 
 **`src/web_auth.cpp`** — Auth/login/logout/status routes plus admin-only user CRUD/password-change handlers.
+
+**`src/web_config.cpp`** — Configuration portal: `handleConfigPage` (serves `/config.html`), `handleConfigGet`, and `handleConfigSave` (atomic validate-then-apply against the full setpoint/interval/IP/device-name set).
+
+**`src/web_ota.cpp`** — `handleOtaStatus` (running partition + boot-failure count) and `handleOtaUpdate` (manifest URL allowlist, version compare, streaming SHA-256 verification, NVS partial-download tracking).
+
+**`src/web_ws.cpp`** — `webSocketEvent` (per-client auth state machine with token challenge), `wsBroadcastAuthenticated`, and `wsCheckAuthTimeouts`.
 
 **`src/auth_logic.h`** — Header-only pure-C++. Token sessions (64 chars, 1-hour TTL, 10 concurrent), PBKDF2 passwords (10000 iterations) with constant-time compare, rate limiting (5 failures per 60 s window → 5-min lockout, 8 tracked slots), adapter-first login fallback.
 

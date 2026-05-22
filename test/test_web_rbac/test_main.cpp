@@ -9,6 +9,9 @@
 
 // Include the real handler translation units under the native stubbed Arduino layer.
 #include "../../src/web_auth.cpp"
+#include "../../src/web_ota.cpp"
+#include "../../src/web_config.cpp"
+#include "../../src/web_ws.cpp"
 #include "../../src/web.cpp"
 
 static uint8_t g_randCounter = 0;
