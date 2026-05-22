@@ -1,24 +1,80 @@
 <!DOCTYPE html>
-<html><head>
+<html lang="en"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sauna — Login</title>
   <style>
-    body { font-family: Helvetica, sans-serif; background: #1a1a2e; color: #eee;
-           margin: 0; display: flex; align-items: center; justify-content: center;
-           min-height: 100vh; }
-    .box { background: #16213e; border-radius: 12px; padding: 36px 40px; width: 100%;
-           max-width: 340px; box-sizing: border-box; }
-    h1 { color: #e94560; margin: 0 0 24px; font-size: 1.4em; text-align: center; }
-    label { display: block; margin-bottom: 6px; font-size: 0.85em; color: #a0aec0; }
-    input { width: 100%; box-sizing: border-box; padding: 10px 12px;
-            background: #0f3460; color: #eee; border: 1px solid #2d3748;
-            border-radius: 6px; font-size: 1em; margin-bottom: 16px; }
-    button { width: 100%; padding: 12px; background: #e94560; color: #fff;
-             border: none; border-radius: 8px; font-size: 1em; cursor: pointer; }
+    :root {
+      --bg:                 #1a1a2e;
+      --bg-elev:            #16213e;
+      --bg-input:           #0f3460;
+      --text:               #eee;
+      --text-muted:         #a0aec0;
+      --accent:             #e94560;
+      --err:                #fc8181;
+      --border:             #2d3748;
+      --radius-sm:          6px;
+      --radius:             8px;
+      --radius-lg:          12px;
+      --font-stack:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+      --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-stack);
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .box {
+      background: var(--bg-elev);
+      border-radius: var(--radius-lg);
+      padding: 36px 40px;
+      width: 100%;
+      max-width: 340px;
+    }
+    h1 { color: var(--accent); margin: 0 0 24px; font-size: 1.4em; text-align: center; }
+    label { display: block; margin-bottom: 6px; font-size: 0.85em; color: var(--text-muted); }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font: 1em var(--font-stack);
+      margin-bottom: 16px;
+    }
+    input:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font: 1em var(--font-stack);
+      cursor: pointer;
+      transition: filter 0.1s;
+    }
+    button:hover { filter: brightness(1.08); }
     button:active { opacity: 0.8; }
-    #err { margin-top: 14px; font-size: 0.85em; color: #fc8181;
-           text-align: center; min-height: 1.2em; }
+    button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    #err {
+      margin-top: 14px;
+      font-size: 0.85em;
+      color: var(--err);
+      text-align: center;
+      min-height: 1.2em;
+    }
   </style>
 </head><body>
   <div class="box">
