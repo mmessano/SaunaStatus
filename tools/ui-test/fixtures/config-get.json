@@ -1,0 +1,10 @@
+{
+  "ceiling_setpoint_f": 160.0,
+  "bench_setpoint_f": 120.0,
+  "ceiling_pid_en": false,
+  "bench_pid_en": false,
+  "sensor_read_interval_ms": 2000,
+  "serial_log_interval_ms": 10000,
+  "static_ip": "192.168.1.200",
+  "device_name": "ESP32"
+}
