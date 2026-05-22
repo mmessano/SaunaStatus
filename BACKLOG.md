@@ -30,5 +30,39 @@
 
 ## P3
 
-- Consider splitting the remaining large Arduino-only modules, especially `src/web.cpp`, to reduce coupling between auth, OTA, config, and UI transport handlers.
+- ~~Split `src/web.cpp` into auth/config/OTA/WS handler files.~~ Done in `5407fe8` (2026-05-21) — `web.cpp` now 299 lines, four sibling translation units.
 - Consider narrowing `refresh-docs.sh` further so AI refresh work updates only tracked docs and never depends on local-only artifacts.
+
+## UI / Design
+
+Findings from the 2026-05-21 design review of `data/index.html`, `data/config.html`, `data/login.html`. Ranked by impact × inverse effort. Validation note: confirm visual changes by rendering pages headlessly (see Slimmer repo for prior art) before declaring batches done.
+
+### P1 — Safety & forward-compat (small, ship first)
+
+- **C2** WebSocket URL hardcodes `ws://` → mixed-content block under any future HTTPS front. Two-line fix in `index.html:324`.
+- **H5** `index.html` `authFetch` 401 handler does not redirect, leaving user on a half-broken page. `config.html` does redirect — bring parity.
+- **C3** Motor controls collide on the word "Closed": `Set Closed` (calibration) vs `Closed` (move-to). Safety-relevant misclick. Restructure card into separate Calibration and Operation regions with unambiguous labels.
+
+### P2 — Foundation (unlocks all later UI work)
+
+- **H1 + M1 + M2 + M3** Lift inline styles into a CSS-custom-property design-token system and a small button-class set (`.btn`, `.btn-sm`, `.btn-xs`, `.btn-warn`, `.btn-neutral`, `.btn-stop`, `.btn-on`, `.btn-off`). Adopt modern system font stack. Unify border-radius across pages. ~60+ inline `style=` attributes in `index.html` go away.
+- **H2** Add `:focus-visible` indicator on all interactive controls; remove `outline:none` reset in `config.html` or pair with replacement.
+- **L1, L2, L3** `lang="en"` on `index.html`, standardize `°` glyph, normalize `<title>` format.
+
+### P2 — Identity & accessibility
+
+- **C1** Unify the login experience. Today: dedicated `data/login.html` (red-on-dark Sauna palette) AND an inline `#login-panel` overlay in `index.html` (Catppuccin palette). Pick one. Reconcile `sessionStorage` vs `localStorage` token storage at the same time.
+- **H3** Connection state currently signaled by dot color only. Add icon/text variation for color-deficient users; have `connStatus` text track state too.
+- **H4** `Idle/Warming/Ready/Hot` thresholds (86/140/194 °F) are unlabeled magic numbers. Add legend or tooltip.
+
+### P3 — Layout & UX polish
+
+- **H6** Replace `.grid` flex-wrap with CSS Grid `auto-fit minmax(220px, 1fr)`. Add `@media` rules for sub-720 px viewports.
+- **M4** Add client-side validation in `config.html` before submit (currently `novalidate` with no JS guard).
+- **M5** Replace native `confirm()` for destructive bucket resets with a themed modal; consider type-to-confirm for irreversible deletes.
+- **M6** Mark setpoint inputs as dirty/edited so live WS updates don't silently overwrite user edits.
+- **M7** Make trend-chart auto-refresh visible (countdown or live indicator); consider tightening from 5 min to 60 s.
+- **M8** Stove sensor null state should show `ERR` red, matching ceiling/bench (currently grey `--`).
+- **M9** Surface real auth errors — 429 lockout currently shows generic "Invalid username or password."
+- **M10** Self-host `chart.js` + `chartjs-adapter-date-fns` to LittleFS. Today the dashboard breaks on a WAN-isolated LAN.
+- **L4–L7** Chart legend size, login-page render-then-redirect flash, inline `onclick=` migration, redundant login-panel-vs-page logic.
