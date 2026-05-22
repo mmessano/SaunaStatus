@@ -244,9 +244,24 @@
 
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
-    btn.disabled = true;
     st.style.display = 'none';
 
+    // M4 — Client-side validation. checkValidity() exercises every input's
+    // type/min/max/pattern/required rules so we never round-trip a bad value
+    // to the device just to get a 400.
+    if (!f.checkValidity()) {
+      const bad = f.querySelector(':invalid');
+      if (bad) {
+        bad.focus();
+        const labelEl = bad.previousElementSibling && bad.previousElementSibling.tagName === 'LABEL'
+          ? bad.previousElementSibling.textContent.trim()
+          : (bad.name || 'field');
+        show((labelEl + ': ' + (bad.validationMessage || 'invalid value')).trim(), 'err');
+      }
+      return;
+    }
+
+    btn.disabled = true;
     const params = new URLSearchParams({
       ceiling_setpoint_f:      f.ceiling_setpoint_f.value,
       bench_setpoint_f:        f.bench_setpoint_f.value,

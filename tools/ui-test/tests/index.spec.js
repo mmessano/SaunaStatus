@@ -76,6 +76,35 @@ test.describe('index.html — admin', () => {
     await expect(page.locator('#statusRange')).toHaveText('140–194°F');
   });
 
+  test('main grid uses CSS Grid layout (H6)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('body.authenticated')).toBeVisible();
+    const display = await page.locator('.grid').evaluate((el) => getComputedStyle(el).display);
+    expect(display).toBe('grid');
+    const cols = await page.locator('.grid').evaluate((el) =>
+      getComputedStyle(el).gridTemplateColumns
+    );
+    // Should resolve to multiple track widths; "none" or "auto" would mean fallback
+    expect(cols).not.toBe('none');
+    expect(cols.length).toBeGreaterThan(0);
+  });
+
+  test('setpoint edit shows dirty badge and blocks WS overwrite (M6)', async ({ page }) => {
+    await page.goto('/');
+    // Wait for WS to push initial values
+    await expect(page.locator('#cspInput')).toHaveValue('160', { timeout: 5_000 });
+    await expect(page.locator('#cspDirty')).toBeHidden();
+    // Diverge from the live value
+    await page.locator('#cspInput').fill('175');
+    await expect(page.locator('#cspDirty')).toBeVisible();
+    // Mock pushes a new payload every 2 s; the dirty input must NOT be overwritten
+    await page.waitForTimeout(2500);
+    await expect(page.locator('#cspInput')).toHaveValue('175');
+    // Returning to the live value clears the badge
+    await page.locator('#cspInput').fill('160');
+    await expect(page.locator('#cspDirty')).toBeHidden();
+  });
+
   test('admin-required sections are visible', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('body.admin')).toBeVisible();

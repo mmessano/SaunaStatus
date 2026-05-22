@@ -89,6 +89,11 @@ const server = http.createServer(async (req, res) => {
         token: TOKENS.viewer, expires_in: 3600, username: 'viewer1', role: 'viewer',
       });
     }
+    // Test scenario: username "lockedout" always returns 429 — lets the M9
+    // distinct-lockout-message Playwright test exercise the rate-limit branch.
+    if (parsed.username === 'lockedout') {
+      return sendJSON(res, 429, { error: 'too many attempts, try again later' });
+    }
     return sendJSON(res, 401, { error: 'invalid credentials' });
   }
   if (route === 'GET /auth/status') {

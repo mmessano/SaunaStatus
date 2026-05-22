@@ -110,7 +110,12 @@
           sessionStorage.setItem('sauna_token', d.token);
           window.location.href = '/';
         });
-        errEl.innerText = 'Invalid username or password.';
+        // M9 — surface 429 rate-limit lockout distinctly from 401 bad creds
+        if (r.status === 429) {
+          errEl.innerText = 'Too many attempts. Try again in a few minutes.';
+        } else {
+          errEl.innerText = 'Invalid username or password.';
+        }
       }).catch(function() {
         errEl.innerText = 'Could not reach device.';
       });

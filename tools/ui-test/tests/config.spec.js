@@ -35,4 +35,17 @@ test.describe('config.html', () => {
     await expect(page.locator('#status')).toHaveText(/Settings saved successfully/i);
     await page.screenshot({ path: 'screenshots/config-saved.png', fullPage: true });
   });
+
+  test('client-side validation blocks out-of-range setpoint (M4)', async ({ page }) => {
+    await seedAuthAsAdmin(page);
+    await page.goto('/config');
+    await expect(page.locator('input[name="ceiling_setpoint_f"]')).toHaveValue('160');
+    // Setpoint range is 32–300 °F; force a value past the upper bound.
+    await page.locator('input[name="ceiling_setpoint_f"]').fill('999');
+    await page.getByRole('button', { name: /Save Settings/i }).click();
+    // Server is not called — UI surfaces the validation error inline.
+    await expect(page.locator('#status')).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('#status')).toHaveClass(/err/);
+    await page.screenshot({ path: 'screenshots/config-validation-error.png', fullPage: true });
+  });
 });

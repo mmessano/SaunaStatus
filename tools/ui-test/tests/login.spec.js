@@ -37,4 +37,13 @@ test.describe('login.html', () => {
       page.getByRole('button', { name: /Sign In/i }).click(),
     ]);
   });
+
+  test('429 rate-limit surfaces distinct message (M9)', async ({ page }) => {
+    await page.goto('/auth/login');
+    await page.locator('#u').fill('lockedout');
+    await page.locator('#p').fill('anything');
+    await page.getByRole('button', { name: /Sign In/i }).click();
+    await expect(page.locator('#err')).toHaveText(/Too many attempts/i, { timeout: 5_000 });
+    await page.screenshot({ path: 'screenshots/login-rate-limited.png', fullPage: true });
+  });
 });
