@@ -63,8 +63,47 @@
     .reading { font-size: 2.8em; font-weight: bold; color: var(--accent); }
     .unit { font-size: 0.85em; color: var(--text-dim); margin-top: 4px; }
     .status { margin-top: 24px; font-size: 0.85em; color: var(--text-dim); }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: middle; }
-    .dot.on { background: var(--ok); }
+    /* Shape and color vary together so state isn't conveyed by color alone (H3). */
+    .dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: transparent;
+      border: 2px solid var(--text-dim);
+      box-sizing: border-box;
+      margin-right: 8px;
+      vertical-align: middle;
+      position: relative;
+    }
+    /* Connected — filled green */
+    .status.ok       { color: var(--ok); }
+    .status.ok .dot  { background: var(--ok); border-color: var(--ok); }
+    /* Connecting — pulsing dim ring */
+    .status.connecting       { color: var(--text-dim); }
+    .status.connecting .dot  {
+      border-color: var(--text-muted);
+      animation: dot-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.85); }
+      50%      { opacity: 1;    transform: scale(1); }
+    }
+    /* Disconnected — filled red with X overlay (shape signal, not just color) */
+    .status.err       { color: var(--err); }
+    .status.err .dot  { background: var(--err); border-color: var(--err); }
+    .status.err .dot::before,
+    .status.err .dot::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 8px; height: 2px;
+      background: var(--bg);
+      transform-origin: center;
+    }
+    .status.err .dot::before { transform: translate(-50%, -50%) rotate(45deg); }
+    .status.err .dot::after  { transform: translate(-50%, -50%) rotate(-45deg); }
+    /* Backwards-compat — older JS may still toggle .dot.on; redirect to the same look */
+    .dot.on { background: var(--ok); border-color: var(--ok); }
 
     /* ---- Buttons ---- */
     .btn {
@@ -236,6 +275,7 @@
     <div class="banner-item">
       <div class="unit">Status</div>
       <div id="saunaStatus">--</div>
+      <div class="unit" id="statusRange" title="Status thresholds — avg ceiling+bench temperature"></div>
     </div>
     <div class="banner-item card">
       <div class="unit">Avg Temperature</div>
@@ -407,9 +447,9 @@
       </div>
     </div>
   </div>
-  <div class="status">
-    <span class="dot" id="dot"></span>
-    <span id="connStatus">Connecting...</span>
+  <div class="status connecting" id="connWrapper" role="status" aria-live="polite">
+    <span class="dot" id="dot" aria-hidden="true"></span>
+    <span id="connStatus">Connecting…</span>
   </div>
   <div class="admin-required">
     <button class="btn" onclick="logNow()">Log Now</button>
@@ -512,8 +552,17 @@
 
     var ws;
     var wsAuthed = false;
+    // Centralized connection-state UI — shape AND color signal state (H3).
+    function setConnState(state, text) {
+      var wrap = document.getElementById('connWrapper');
+      var label = document.getElementById('connStatus');
+      wrap.classList.remove('ok', 'err', 'connecting');
+      wrap.classList.add(state);
+      label.innerText = text;
+    }
     function connect() {
       wsAuthed = false;
+      setConnState('connecting', 'Connecting…');
       var wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
       ws = new WebSocket(wsProto + location.hostname + ':81/');
       ws.onopen = function() {
@@ -534,8 +583,7 @@
         // Auth succeeded once we get sensor data
         if (!wsAuthed) {
           wsAuthed = true;
-          document.getElementById('dot').className = 'dot on';
-          document.getElementById('connStatus').innerText = 'Connected';
+          setConnState('ok', 'Connected');
         }
         function set(id, v) {
           var el = document.getElementById(id);
@@ -606,14 +654,21 @@
         updateEnvBanner(d);
       };
       ws.onclose = function() {
-        document.getElementById('dot').className = 'dot';
-        document.getElementById('connStatus').innerText = 'Disconnected \u2014 retrying...';
+        setConnState('err', 'Disconnected \u2014 retrying\u2026');
         if (document.body.classList.contains('authenticated')) {
           setTimeout(connect, 3000);
         }
       };
       ws.onerror = function() { ws.close(); };
     }
+    // Sauna status thresholds — keyed off avg ceiling+bench temp in °F.
+    // Surfaced in the UI as a subtext under the status word (H4).
+    var SAUNA_STATUS_BANDS = [
+      { max: 86,       label: 'Idle',    color: '#718096', range: '< 86°F'    },
+      { max: 140,      label: 'Warming', color: '#d97706', range: '86–140°F'  },
+      { max: 194,      label: 'Ready',   color: '#48bb78', range: '140–194°F' },
+      { max: Infinity, label: 'Hot',     color: '#e94560', range: '≥ 194°F'   }
+    ];
     function updateEnvBanner(d) {
       var temps = [], hums = [];
       if (d.clt !== null) temps.push(parseFloat(d.clt));
@@ -626,14 +681,24 @@
       document.getElementById('avgHum').innerText  = avgH !== null ? avgH.toFixed(1) : '--';
       document.getElementById('stoveReading').innerText = d.tct !== null ? d.tct : '--';
       var statusEl = document.getElementById('saunaStatus');
-      var label, color;
-      if (avgT === null)    { label = '--';      color = '#718096'; }
-      else if (avgT < 86)   { label = 'Idle';    color = '#718096'; }
-      else if (avgT < 140)  { label = 'Warming'; color = '#d97706'; }
-      else if (avgT < 194)  { label = 'Ready';   color = '#48bb78'; }
-      else                  { label = 'Hot';     color = '#e94560'; }
+      var rangeEl  = document.getElementById('statusRange');
+      var label, color, range;
+      if (avgT === null) {
+        label = '--';
+        color = '#718096';
+        range = '';
+      } else {
+        var band;
+        for (var i = 0; i < SAUNA_STATUS_BANDS.length; i++) {
+          if (avgT < SAUNA_STATUS_BANDS[i].max) { band = SAUNA_STATUS_BANDS[i]; break; }
+        }
+        label = band.label;
+        color = band.color;
+        range = band.range;
+      }
       statusEl.innerText = label;
       statusEl.style.color = color;
+      rangeEl.innerText = range;
     }
     function resetBucket(path, name) {
       if (!confirm('Delete ALL data from ' + name + '?\nThis cannot be undone.')) return;

@@ -63,7 +63,17 @@ test.describe('index.html — admin', () => {
   test('connection status flips to Connected after WS auth', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#connStatus')).toHaveText('Connected', { timeout: 5_000 });
-    await expect(page.locator('#dot')).toHaveClass(/on/);
+    // H3: state is signaled by class on the wrapper, not just dot color
+    await expect(page.locator('#connWrapper')).toHaveClass(/\bok\b/);
+    await expect(page.locator('#connWrapper')).toHaveAttribute('role', 'status');
+    await expect(page.locator('#connWrapper')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  test('status banner shows threshold range subtext (H4)', async ({ page }) => {
+    await page.goto('/');
+    // Mock WS pushes clt=175.4 + d5t=148.1 → avg ~161.75 °F → "Ready" (140–194°F)
+    await expect(page.locator('#saunaStatus')).toHaveText('Ready', { timeout: 5_000 });
+    await expect(page.locator('#statusRange')).toHaveText('140–194°F');
   });
 
   test('admin-required sections are visible', async ({ page }) => {
