@@ -57,12 +57,15 @@ Findings from the 2026-05-21 design review of `data/index.html`, `data/config.ht
 
 ### P3 — Layout & UX polish
 
-- **H6** Replace `.grid` flex-wrap with CSS Grid `auto-fit minmax(220px, 1fr)`. Add `@media` rules for sub-720 px viewports.
-- **M4** Add client-side validation in `config.html` before submit (currently `novalidate` with no JS guard).
-- **M5** Replace native `confirm()` for destructive bucket resets with a themed modal; consider type-to-confirm for irreversible deletes.
-- **M6** Mark setpoint inputs as dirty/edited so live WS updates don't silently overwrite user edits.
-- **M7** Make trend-chart auto-refresh visible (countdown or live indicator); consider tightening from 5 min to 60 s.
-- **M8** Stove sensor null state should show `ERR` red, matching ceiling/bench (currently grey `--`).
-- **M9** Surface real auth errors — 429 lockout currently shows generic "Invalid username or password."
-- **M10** Self-host `chart.js` + `chartjs-adapter-date-fns` to LittleFS. Today the dashboard breaks on a WAN-isolated LAN.
-- **L4–L7** Chart legend size, login-page render-then-redirect flash, inline `onclick=` migration, redundant login-panel-vs-page logic.
+- ~~**H6** Replace `.grid` flex-wrap with CSS Grid `auto-fit minmax(220px, 1fr)`. Add `@media` rules for sub-720 px viewports.~~ Done in `5b21ef7`.
+- ~~**M4** Add client-side validation in `config.html` before submit.~~ Done in `5b21ef7`.
+- ~~**M5** Replace native `confirm()` for destructive bucket resets with a themed modal; type-to-confirm for irreversible deletes.~~ Done (in this commit).
+- ~~**M6** Mark setpoint inputs as dirty/edited so live WS updates don't silently overwrite user edits.~~ Done in `5b21ef7`.
+- ~~**M7** Make trend-chart auto-refresh visible; tightened from 5 min to 60 s.~~ Done (in this commit).
+- ~~**M8** Stove sensor null state should show `ERR` red, matching ceiling/bench.~~ Done in `5b21ef7`.
+- ~~**M9** Surface real auth errors — 429 lockout distinct from 401.~~ Done in `5b21ef7`.
+- **M10** Self-host `chart.js` + `chartjs-adapter-date-fns` to LittleFS. **Blocked**: requires a static-file route handler in firmware (`src/web.cpp`) — currently only the three named pages are served. Tracked as firmware follow-up.
+- ~~**L4** Chart legend size/contrast.~~ Done (in this commit) — `boxWidth: 16`, padding 14, color `#eee`, font size 13.
+- ~~**L5** Login render-then-redirect flash.~~ Done (in this commit) — `body.checking-auth .box { visibility: hidden }` until `/auth/status` resolves.
+- **L6** Inline `onclick=` migration to `addEventListener` — mechanical low-ROI; defer.
+- **L7** Redundant login-panel-vs-page logic — mostly addressed by C1 unification; revisit if/when the inline panel can be removed entirely.

@@ -251,6 +251,35 @@
 
     /* ---- Setpoint card ---- */
     .sp-row { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 10px; }
+
+    /* ---- Themed confirm modal (M5) ---- */
+    .modal {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2000;
+      padding: 20px;
+    }
+    .modal[hidden] { display: none; }
+    .modal-box {
+      background: var(--bg-elev);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      text-align: left;
+    }
+    .modal-box h2 {
+      margin: 0 0 12px;
+      color: var(--accent);
+      font-size: 1.1em;
+    }
+    .modal-body { color: var(--text); font-size: 0.95em; line-height: 1.45; margin-bottom: 14px; }
+    #confirmInput { width: 100%; margin-bottom: 14px; }
+    #confirmInput[hidden] { display: none; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-actions .btn { margin-top: 0; }
     .dirty-badge {
       display: inline-block;
       margin-left: 6px;
@@ -340,6 +369,7 @@
     </div>
     <div style="margin-top:6px;text-align:center;">
       <span id="trendStatus" style="font-size:0.8em;color:var(--text-dim);"></span>
+      <span id="refreshCountdown" style="font-size:0.75em;color:var(--text-dim);margin-left:8px;"></span>
       <button class="btn btn-md" style="margin-left:12px;" onclick="loadHistory()">Refresh</button>
     </div>
   </div>
@@ -487,6 +517,19 @@
       </div>
     </div>
   </div>
+  <!-- Themed confirmation modal (M5) -->
+  <div id="confirmModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-box">
+      <h2 id="confirmTitle">Confirm</h2>
+      <div class="modal-body" id="confirmBody"></div>
+      <input id="confirmInput" type="text" autocomplete="off" hidden>
+      <div class="modal-actions">
+        <button class="btn btn-md btn-neutral" id="confirmCancel">Cancel</button>
+        <button class="btn btn-md btn-warn" id="confirmOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div class="status connecting" id="connWrapper" role="status" aria-live="polite">
     <span class="dot" id="dot" aria-hidden="true"></span>
     <span id="connStatus">Connecting…</span>
@@ -749,17 +792,73 @@
       statusEl.style.color = color;
       rangeEl.innerText = range;
     }
+    // M5 — themed confirm modal replaces native confirm(). Returns Promise<bool>.
+    // Pass requireTyping: '<string>' to enable type-to-confirm for irreversible ops.
+    function themedConfirm(opts) {
+      return new Promise(function(resolve) {
+        var modal     = document.getElementById('confirmModal');
+        var titleEl   = document.getElementById('confirmTitle');
+        var bodyEl    = document.getElementById('confirmBody');
+        var inputEl   = document.getElementById('confirmInput');
+        var okBtn     = document.getElementById('confirmOk');
+        var cancelBtn = document.getElementById('confirmCancel');
+
+        titleEl.textContent = opts.title || 'Confirm';
+        bodyEl.textContent  = opts.message || '';
+        okBtn.textContent   = opts.confirmLabel || 'Confirm';
+
+        if (opts.requireTyping) {
+          inputEl.hidden = false;
+          inputEl.value = '';
+          inputEl.placeholder = 'Type "' + opts.requireTyping + '" to confirm';
+          okBtn.disabled = true;
+          inputEl.oninput = function() {
+            okBtn.disabled = inputEl.value !== opts.requireTyping;
+          };
+        } else {
+          inputEl.hidden = true;
+          okBtn.disabled = false;
+        }
+
+        function cleanup() {
+          modal.hidden = true;
+          okBtn.onclick = null;
+          cancelBtn.onclick = null;
+          inputEl.oninput = null;
+          document.removeEventListener('keydown', onKey);
+        }
+        function onKey(e) {
+          if (e.key === 'Escape') { cleanup(); resolve(false); }
+          else if (e.key === 'Enter' && !okBtn.disabled) { cleanup(); resolve(true); }
+        }
+        okBtn.onclick = function()     { cleanup(); resolve(true); };
+        cancelBtn.onclick = function() { cleanup(); resolve(false); };
+        document.addEventListener('keydown', onKey);
+
+        modal.hidden = false;
+        if (opts.requireTyping) inputEl.focus(); else okBtn.focus();
+      });
+    }
+
     function resetBucket(path, name) {
-      if (!confirm('Delete ALL data from ' + name + '?\nThis cannot be undone.')) return;
-      var el = document.getElementById('resetStatus');
-      el.style.color = '#718096';
-      el.innerText = 'Deleting ' + name + '...';
-      authFetch('/delete/' + path, { method: 'DELETE' }).then(function(r) { return r.text(); }).then(function(t) {
-        el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
-        el.innerText = t === 'OK' ? name + ' cleared' : 'Error: ' + t;
-      }).catch(function() {
-        el.style.color = '#fc8181';
-        el.innerText = 'Request failed';
+      themedConfirm({
+        title: 'Delete all data?',
+        message: 'This will permanently delete every measurement in ' + name +
+                 '. This cannot be undone.',
+        confirmLabel: 'Delete ' + name,
+        requireTyping: name
+      }).then(function(ok) {
+        if (!ok) return;
+        var el = document.getElementById('resetStatus');
+        el.style.color = '#718096';
+        el.innerText = 'Deleting ' + name + '...';
+        authFetch('/delete/' + path, { method: 'DELETE' }).then(function(r) { return r.text(); }).then(function(t) {
+          el.style.color = t === 'OK' ? '#48bb78' : '#fc8181';
+          el.innerText = t === 'OK' ? name + ' cleared' : 'Error: ' + t;
+        }).catch(function() {
+          el.style.color = '#fc8181';
+          el.innerText = 'Request failed';
+        });
       });
     }
     function logNow() {
@@ -848,9 +947,14 @@
           el.style.color = '#fc8181'; el.innerText = 'Request failed';
         });
     }
+    // M7 \u2014 visible chart auto-refresh countdown. Tightened from 5 min to 60 s
+    // so a warming sauna trend doesn't feel stale.
+    var CHART_REFRESH_MS = 60_000;
+    var nextChartRefreshAt = Date.now() + CHART_REFRESH_MS;
     function loadHistory() {
       var el = document.getElementById('trendStatus');
       el.style.color = '#718096'; el.innerText = 'Loading\u2026';
+      nextChartRefreshAt = Date.now() + CHART_REFRESH_MS;
       fetch('/history').then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
@@ -863,6 +967,18 @@
         el.style.color = '#fc8181';
         el.innerText = 'Error: ' + err.message;
       });
+    }
+    function tickChartCountdown() {
+      var el = document.getElementById('refreshCountdown');
+      if (!el) return;
+      var remaining = Math.max(0, nextChartRefreshAt - Date.now());
+      if (remaining <= 0) {
+        loadHistory();
+        return;
+      }
+      var mm = Math.floor(remaining / 60000);
+      var ss = Math.floor((remaining % 60000) / 1000);
+      el.textContent = '(auto in ' + mm + ':' + (ss < 10 ? '0' : '') + ss + ')';
     }
     function parseHistCSV(csv) {
       var lines = csv.split('\n');
@@ -912,13 +1028,20 @@
                  grid: { color: '#2d3748' } }
           },
           plugins: {
-            legend: { labels: { color: '#a0aec0', boxWidth: 12 } },
+            legend: {
+              labels: {
+                color: '#eee',
+                boxWidth: 16,
+                padding: 14,
+                font: { size: 13 }
+              }
+            },
             tooltip: { callbacks: { label: function(ctx){ return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '\u00b0F'; } } }
           }
         }
       });
     }
-    setInterval(loadHistory, 300000);
+    setInterval(tickChartCountdown, 1000);
 
     function loadUsers() {
       authFetch('/users').then(function(r){ return r.json(); }).then(function(list) {
@@ -964,9 +1087,15 @@
     }
 
     function deleteUser(username) {
-      if (!confirm('Delete user "' + username + '"?')) return;
-      authFetch('/users?username=' + encodeURIComponent(username), { method: 'DELETE' })
-        .then(function(){ loadUsers(); });
+      themedConfirm({
+        title: 'Delete user?',
+        message: 'Remove user "' + username + '" from the device. They will lose access immediately.',
+        confirmLabel: 'Delete user'
+      }).then(function(ok) {
+        if (!ok) return;
+        authFetch('/users?username=' + encodeURIComponent(username), { method: 'DELETE' })
+          .then(function(){ loadUsers(); });
+      });
     }
   </script>
   <div class="admin-required">

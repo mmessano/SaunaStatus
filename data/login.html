@@ -75,8 +75,11 @@
       text-align: center;
       min-height: 1.2em;
     }
+    /* L5 — hide the form while we check for an existing session, to avoid
+       briefly flashing the login UI before redirecting an already-authed user. */
+    body.checking-auth .box { visibility: hidden; }
   </style>
-</head><body>
+</head><body class="checking-auth">
   <div class="box">
     <h1>Sauna Login</h1>
     <label for="u">Username</label>
@@ -87,12 +90,18 @@
     <div id="err"></div>
   </div>
   <script>
-    // If already authenticated, skip to dashboard
+    // If already authenticated, skip to dashboard. While the status check
+    // is in flight, body.checking-auth keeps the form hidden (L5).
     (function() {
+      function revealForm() { document.body.classList.remove('checking-auth'); }
       var tok = sessionStorage.getItem('sauna_token');
-      if (!tok) return;
+      if (!tok) { revealForm(); return; }
       fetch('/auth/status', { headers: { 'Authorization': 'Bearer ' + tok } })
-        .then(function(r) { if (r.ok) window.location.href = '/'; });
+        .then(function(r) {
+          if (r.ok) window.location.href = '/';
+          else      revealForm();
+        })
+        .catch(revealForm);
     })();
 
     function doLogin() {

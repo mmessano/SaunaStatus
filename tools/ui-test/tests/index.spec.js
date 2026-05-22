@@ -89,6 +89,41 @@ test.describe('index.html — admin', () => {
     expect(cols.length).toBeGreaterThan(0);
   });
 
+  test('chart auto-refresh countdown ticks (M7)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('body.authenticated')).toBeVisible();
+    // Countdown text should appear within a second or two
+    await expect(page.locator('#refreshCountdown')).toHaveText(/\(auto in 0:\d{2}\)/, { timeout: 3_000 });
+  });
+
+  test('themed confirm modal replaces native confirm and requires typing (M5)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('body.admin')).toBeVisible();
+    // Click "Reset sauna_status" — should open the themed modal (NOT native confirm)
+    await page.getByRole('button', { name: 'Reset sauna_status' }).click();
+    await expect(page.locator('#confirmModal')).toBeVisible();
+    await expect(page.locator('#confirmTitle')).toHaveText(/Delete all data/i);
+    // OK button is disabled until the bucket name is typed
+    await expect(page.locator('#confirmOk')).toBeDisabled();
+    await page.locator('#confirmInput').fill('sauna_status');
+    await expect(page.locator('#confirmOk')).toBeEnabled();
+    // Confirm and verify the delete fires
+    await page.locator('#confirmOk').click();
+    await expect(page.locator('#confirmModal')).toBeHidden();
+    await expect(page.locator('#resetStatus')).toHaveText(/sauna_status cleared/i, { timeout: 5_000 });
+  });
+
+  test('themed confirm modal cancels on Cancel button (M5)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('body.admin')).toBeVisible();
+    await page.getByRole('button', { name: 'Reset sauna_control' }).click();
+    await expect(page.locator('#confirmModal')).toBeVisible();
+    await page.locator('#confirmCancel').click();
+    await expect(page.locator('#confirmModal')).toBeHidden();
+    // No status text because no request was made
+    await expect(page.locator('#resetStatus')).toBeEmpty();
+  });
+
   test('setpoint edit shows dirty badge and blocks WS overwrite (M6)', async ({ page }) => {
     await page.goto('/');
     // Wait for WS to push initial values
