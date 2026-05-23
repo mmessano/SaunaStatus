@@ -26,11 +26,12 @@ cat > "$BACKLOG" <<EOF
 - Tracked checkpoint command: \`bash scripts/update-checkpoint.sh\`
 - Local handoff artifact: \`bash scripts/update-handoff.sh\` writes ignored \`HANDOFF.md\`
 - Validation baseline:
-  - \`pio test -e native\`
-  - \`pio run -e lb_esp32s3 -t buildprog\`
+  - \`pio test -e native\`  (320 native unit tests)
+  - \`pio run -e lb_esp32s3 -t buildprog\`  (firmware compile only, no flash)
+  - \`python3 scripts/verify_doc_drift.py\`  (routes + constants + NVS keys vs docs)
+  - \`cd tools/ui-test && ./node_modules/.bin/playwright test\`  (44 UI integration tests, desktop + mobile)
 - Current focus:
-  - P1 hardware validation on a real board
-  - P2 documentation drift reduction for routes, config keys, and constants
+  - P1 hardware validation on a real board — the entire UI lane (BACKLOG.md "UI / Design") and the drift-checker extension are shipped; what is left needs live hardware in front of a person.
 <!-- CHECKPOINT:END -->
 
 EOF

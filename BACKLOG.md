@@ -3,17 +3,18 @@
 ## Session Checkpoint
 
 <!-- CHECKPOINT:START -->
-- Refreshed: 2026-04-26
+- Refreshed: 2026-05-22
 - Branch: `master`
-- Latest commit: `2c903d6 ref(handoff): Make checkpoint generation manual`
+- Latest commit: `43b0761 refactor(ui): L6 + L7 — single login UI, addEventListener for all handlers`
 - Tracked checkpoint command: `bash scripts/update-checkpoint.sh`
 - Local handoff artifact: `bash scripts/update-handoff.sh` writes ignored `HANDOFF.md`
 - Validation baseline:
-  - `pio test -e native`
-  - `pio run -e lb_esp32s3 -t buildprog`
+  - `pio test -e native`  (320 native unit tests)
+  - `pio run -e lb_esp32s3 -t buildprog`  (firmware compile only, no flash)
+  - `python3 scripts/verify_doc_drift.py`  (routes + constants + NVS keys vs docs)
+  - `cd tools/ui-test && ./node_modules/.bin/playwright test`  (44 UI integration tests, desktop + mobile)
 - Current focus:
-  - P1 hardware validation on a real board
-  - P2 documentation drift reduction for routes, config keys, and constants
+  - P1 hardware validation on a real board — the entire UI lane (BACKLOG.md "UI / Design") and the drift-checker extension are shipped; what is left needs live hardware in front of a person.
 <!-- CHECKPOINT:END -->
 
 ## P1
@@ -59,13 +60,13 @@ Findings from the 2026-05-21 design review of `data/index.html`, `data/config.ht
 
 - ~~**H6** Replace `.grid` flex-wrap with CSS Grid `auto-fit minmax(220px, 1fr)`. Add `@media` rules for sub-720 px viewports.~~ Done in `5b21ef7`.
 - ~~**M4** Add client-side validation in `config.html` before submit.~~ Done in `5b21ef7`.
-- ~~**M5** Replace native `confirm()` for destructive bucket resets with a themed modal; type-to-confirm for irreversible deletes.~~ Done (in this commit).
+- ~~**M5** Replace native `confirm()` for destructive bucket resets with a themed modal; type-to-confirm for irreversible deletes.~~ Done in `36c720b`.
 - ~~**M6** Mark setpoint inputs as dirty/edited so live WS updates don't silently overwrite user edits.~~ Done in `5b21ef7`.
-- ~~**M7** Make trend-chart auto-refresh visible; tightened from 5 min to 60 s.~~ Done (in this commit).
+- ~~**M7** Make trend-chart auto-refresh visible; tightened from 5 min to 60 s.~~ Done in `36c720b`.
 - ~~**M8** Stove sensor null state should show `ERR` red, matching ceiling/bench.~~ Done in `5b21ef7`.
 - ~~**M9** Surface real auth errors — 429 lockout distinct from 401.~~ Done in `5b21ef7`.
-- **M10** Self-host `chart.js` + `chartjs-adapter-date-fns` to LittleFS. **Blocked**: requires a static-file route handler in firmware (`src/web.cpp`) — currently only the three named pages are served. Tracked as firmware follow-up.
-- ~~**L4** Chart legend size/contrast.~~ Done (in this commit) — `boxWidth: 16`, padding 14, color `#eee`, font size 13.
-- ~~**L5** Login render-then-redirect flash.~~ Done (in this commit) — `body.checking-auth .box { visibility: hidden }` until `/auth/status` resolves.
+- ~~**M10** Self-host `chart.js` + `chartjs-adapter-date-fns` to LittleFS.~~ Done in `0ab0cfb` — added a `streamVendorJs(path)` helper + two routes (`/chart.umd.min.js`, `/chart-adapter.min.js`) in `src/web.cpp`, vendored pinned 4.4.7 + 3.0.0 bundles into `data/`.
+- ~~**L4** Chart legend size/contrast.~~ Done in `36c720b` — `boxWidth: 16`, padding 14, color `#eee`, font size 13.
+- ~~**L5** Login render-then-redirect flash.~~ Done in `36c720b` — `body.checking-auth .box { visibility: hidden }` until `/auth/status` resolves.
 - ~~**L6** Inline `onclick=` migration to `addEventListener`.~~ Done — 27 inline handlers replaced with delegated dispatch via `data-motor`/`data-cmd`/`data-pid`/`data-reset` attributes and one-off IDs.
 - ~~**L7** Redundant login-panel-vs-page logic.~~ Done — inline `#login-panel` and `doLogin()` removed; `/` now redirects to `/auth/login` when unauthenticated, leaving a single login UI.
