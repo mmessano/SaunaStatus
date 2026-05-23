@@ -442,6 +442,38 @@ DELETE http://192.168.1.200/delete/control
 
 ---
 
+### `GET /chart.umd.min.js`
+
+Serves the pinned Chart.js 4.4.7 UMD bundle from LittleFS so the dashboard works on WAN-isolated LANs. Unauthenticated.
+
+#### Response
+
+| Status | Content-Type           | Body                                          |
+|--------|------------------------|-----------------------------------------------|
+| `200`  | `application/javascript` | Chart.js UMD bundle (205,889 bytes shipped) |
+| `404`  | `text/plain`           | `not found` (LittleFS file missing)           |
+| `503`  | `text/plain`           | `LittleFS unavailable — repair or upload filesystem image` |
+
+`Cache-Control: public, max-age=31536000, immutable` is sent because the URL carries the exact pinned version we shipped — bumping the version means changing the upstream filename or LittleFS contents and re-uploading the filesystem image.
+
+---
+
+### `GET /chart-adapter.min.js`
+
+Serves the pinned `chartjs-adapter-date-fns` 3.0.0 bundle (single-file with date-fns embedded) from LittleFS. Unauthenticated.
+
+#### Response
+
+| Status | Content-Type           | Body                                                  |
+|--------|------------------------|-------------------------------------------------------|
+| `200`  | `application/javascript` | Adapter bundle (50,650 bytes shipped)               |
+| `404`  | `text/plain`           | `not found` (LittleFS file missing)                   |
+| `503`  | `text/plain`           | `LittleFS unavailable — repair or upload filesystem image` |
+
+The upstream filename is `chartjs-adapter-date-fns.bundle.min.js` (38 chars). The local LittleFS image stores it as `chart-adapter.min.js` because the default `LFS_NAME_MAX` is 31 — the longer name fails the `mklittlefs` packer with "error adding file!".
+
+---
+
 ### `GET /auth/login`
 
 Serves the login page from LittleFS.

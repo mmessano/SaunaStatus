@@ -1,9 +1,15 @@
 # Testing
 
-Run with `pio test -e native`. Total: **320 tests** as of 2026-04-26.
-Run `python3 scripts/verify_doc_drift.py` to verify documented HTTP routes and high-risk constants still match source.
+Two layers of automated coverage, plus a hardware checklist.
 
-Hardware-only verification is tracked separately in [docs/hardware-smoke.md](/home/mmessano/Documents/PlatformIO/Projects/SaunaStatus/docs/hardware-smoke.md:1). Use that checklist after firmware flashes, LittleFS uploads, OTA changes, Wi-Fi/MQTT changes, or safety-path edits.
+| Layer | Tool | Scope | Run |
+|---|---|---|---|
+| Native unit tests | PlatformIO + Unity | Pure-C++ logic in headers + Arduino-stubbed handler RBAC | `pio test -e native` |
+| UI integration tests | Playwright + Chromium (via `tools/ui-test/`) | `data/*.html` rendered in a real browser against a mock ESP32 server | `cd tools/ui-test && ./node_modules/.bin/playwright test` |
+| Doc drift check | `scripts/verify_doc_drift.py` | Registered HTTP routes + high-risk constants match docs | `python3 scripts/verify_doc_drift.py` |
+| Hardware smoke | Manual | Live device behavior after flash/OTA/Wi-Fi/safety-path changes | [docs/hardware-smoke.md](hardware-smoke.md) |
+
+Native total: **320 tests** as of 2026-04-26. UI total: **44 tests** as of 2026-05-22.
 
 ## Test Suites
 
@@ -23,6 +29,24 @@ Hardware-only verification is tracked separately in [docs/hardware-smoke.md](/ho
 | `test/test_config_json/` | 15 | `buildConfigJson()` output format; keys; buffer safety |
 | `test/test_version_utils/` | 24 | `formatVersion`, `isDowngrade`, `isSameVersion`; invalid/both-invalid edge cases |
 | `test/test_gpio_config/` | 21 | Pin values, adjacency, uniqueness, restricted pins, coil order |
+
+## UI Integration Suite
+
+The `tools/ui-test/` directory holds a Playwright harness that renders `data/*.html` in a real Chromium against a Node mock that fakes every HTTP and WebSocket endpoint the dashboard, config portal, and login page call. Runs both Desktop Chrome (1280×800) and Pixel 5 viewports — 44 tests across `login.spec.js`, `index.spec.js`, and `config.spec.js`. Setup, fixtures, and the `:81 → :18081` WebSocket-port patch are documented in `tools/ui-test/README.md`.
+
+Notable assertions, mapped to design-review findings (see `BACKLOG.md` UI lane):
+
+- **C3** Motor card has separated "CALIBRATE" and "MOVE TO POSITION" sub-sections with unambiguous labels
+- **H3** Connection state class (`.ok`/`.err`/`.connecting`) plus ARIA `role="status"` / `aria-live="polite"`
+- **H4** Status threshold subtext (e.g. "140–194°F" under "Ready")
+- **H5** `index.html` redirects to `/auth/login` on 401, matching `config.html`
+- **H6** `.grid` resolves to `display: grid` with non-empty `grid-template-columns`
+- **M4** Out-of-range setpoints get a client-side error banner, no server round-trip
+- **M5** Themed confirm modal with type-to-confirm for destructive bucket resets
+- **M6** Setpoint dirty/edited badge appears when user diverges from live value; WS overwrite suppressed while dirty
+- **M7** `#refreshCountdown` displays "(auto in 0:NN)" within seconds of page load
+- **M9** 429 lockout from `/auth/login` surfaces distinct "Too many attempts" copy
+- **M10** Chart.js + adapter load from `/chart.umd.min.js` and `/chart-adapter.min.js`, no jsdelivr/unpkg requests, canvas non-empty
 
 ## Undocumented Items
 

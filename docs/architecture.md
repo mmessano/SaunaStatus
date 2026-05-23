@@ -92,7 +92,7 @@ Threshold: `STALE_THRESHOLD_MS = 10000UL`. Stale if `last_ok_ms == 0` (never rea
 
 ## Web UI
 
-`data/index.html` — single-file HTML/JS dashboard served from LittleFS. Upload with `pio run -t uploadfs`. Connects to `ws://<device-ip>:81` for live readings. Uses Chart.js (CDN) for temperature trends.
+`data/index.html` — single-file HTML/JS dashboard served from LittleFS. Upload with `pio run -t uploadfs`. Connects to `ws://<device-ip>:81` for live readings. Renders trend charts with Chart.js, served from LittleFS (no internet required).
 
 ## LittleFS Layout
 
@@ -102,8 +102,10 @@ Threshold: `STALE_THRESHOLD_MS = 10000UL`. Stale if `last_ok_ms == 0` (never rea
 | `login.html` | `GET /auth/login` | Login page |
 | `config.html` | `GET /config` | Configuration portal page |
 | `config.json` | Layer 2 config | Fleet defaults (read by `loadLittleFSConfig()`) |
+| `chart.umd.min.js` | `GET /chart.umd.min.js` | Pinned Chart.js 4.4.7 UMD bundle (206 KB) — `Cache-Control: immutable` |
+| `chart-adapter.min.js` | `GET /chart-adapter.min.js` | Pinned `chartjs-adapter-date-fns` 3.0.0 bundle (50 KB) — `Cache-Control: immutable`. Stored under this 20-char name because the upstream `chartjs-adapter-date-fns.bundle.min.js` (38 chars) exceeds LittleFS `LFS_NAME_MAX=31` and `mklittlefs` rejects it with "error adding file!" |
 
-`Cache-Control: no-store` on all HTML pages. `LittleFS.begin(false)` preserves the filesystem on mount failure; if the mount fails, the device runs in degraded mode with LittleFS-backed pages and fleet `/config.json` disabled until the filesystem is repaired and re-uploaded.
+`Cache-Control: no-store` on all HTML pages. Vendor JS bundles use `Cache-Control: public, max-age=31536000, immutable` since their pinned-version filenames change when the version does. `LittleFS.begin(false)` preserves the filesystem on mount failure; if the mount fails, the device runs in degraded mode with LittleFS-backed pages and fleet `/config.json` disabled until the filesystem is repaired and re-uploaded.
 
 Fleet `/config.json` boot semantics:
 
