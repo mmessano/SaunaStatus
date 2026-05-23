@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAIN_CPP = REPO_ROOT / "src" / "main.cpp"
 CONFIG_DOC = REPO_ROOT / "docs" / "config-reference.md"
 API_DOC = REPO_ROOT / "docs" / "api-reference.md"
+PLATFORMIO_INI = REPO_ROOT / "platformio.ini"
 
 SOURCE_FILES = (
     REPO_ROOT / "src" / "main.cpp",
@@ -20,29 +21,24 @@ SOURCE_FILES = (
     REPO_ROOT / "src" / "sauna_logic.h",
 )
 
-# Keep this list intentionally narrow: these are the values most likely to drift
-# because they are security- or recovery-sensitive and explicitly documented.
-CONSTANTS_TO_VERIFY = (
-    "AUTH_TOKEN_TTL_MS",
-    "AUTH_MAX_SESSIONS",
-    "AUTH_MAX_USERS",
-    "AUTH_MIN_PASS_LEN",
-    "AUTH_MAX_PASS_LEN",
-    "AUTH_MIN_USER_LEN",
-    "AUTH_MAX_USER_LEN",
-    "AUTH_PBKDF2_ITERATIONS",
-    "AUTH_RATE_LIMIT_MAX_FAILURES",
-    "AUTH_RATE_LIMIT_WINDOW_MS",
-    "AUTH_RATE_LIMIT_LOCKOUT_MS",
-    "AUTH_RATE_LIMIT_SLOTS",
-    "SENSOR_READ_INTERVAL_MIN_MS",
-    "SENSOR_READ_INTERVAL_MAX_MS",
-    "SERIAL_LOG_INTERVAL_MIN_MS",
-    "SERIAL_LOG_INTERVAL_MAX_MS",
-    "OTA_ALLOWED_HOSTS",
-    "OTA_MAX_BOOT_FAILURES",
-    "OVERHEAT_CLEAR_HYSTERESIS_C",
-)
+# Source files scanned for prefs.* NVS key usage. Anything that actually
+# touches the Preferences API lives in a .cpp; the headers carry only types
+# and externs.
+NVS_SOURCE_FILES = tuple(REPO_ROOT.glob("src/*.cpp")) + tuple(REPO_ROOT.glob("src/*.h"))
+
+# NVS keys that aren't in the Tier 3 table: namespace strings and the
+# sauna_auth-namespace keys (documented as prose in config-reference.md
+# because the user store keys are templated u<N>_name / u<N>_hash / …).
+NVS_KEYS_OUTSIDE_TABLE = frozenset({
+    # Namespace identifiers passed to prefs.begin()
+    "sauna", "sauna_auth",
+    # External-auth adapter config (sauna_auth namespace, documented in prose)
+    "db_url", "db_key",
+    # User-store template key — only u0_name appears as a literal in source
+    # (used to detect the "first-boot, no users" state); u1..u4 are formed
+    # at runtime via snprintf.
+    "u0_name",
+})
 
 ROUTE_RE = re.compile(
     r'server\.on\("(?P<path>[^"]+)"(?:,\s*(?P<method>HTTP_[A-Z]+))?'
@@ -51,6 +47,12 @@ DOC_ROUTE_RE = re.compile(r"^###\s+`(?P<method>[A-Z]+)\s+(?P<path>/[^`]*)`\s*$")
 DEFINE_RE = re.compile(r"^\s*#define\s+(?P<name>[A-Z0-9_]+)\s+(?P<value>.+?)\s*$")
 DOC_NAME_RE = re.compile(r"^\s*`(?P<name>[A-Z0-9_]+)`\s*$")
 DOC_VALUE_RE = re.compile(r"`(?P<value>[^`]+)`")
+NVS_CALL_RE = re.compile(r'\bprefs\.[A-Za-z]+\(\s*"(?P<key>[A-Za-z0-9_]+)"')
+DOC_NVS_KEY_RE = re.compile(r"^`(?P<key>[a-z][a-z0-9_]*)`$")
+# Captures active (uncommented) -DNAME=value build flags from platformio.ini.
+# Escaped quotes (\") in the value become real quotes for comparison with the
+# documented `"2.0.0"` style.
+BUILD_FLAG_RE = re.compile(r'^\s*-D(?P<name>[A-Z0-9_]+)=(?P<value>\S+)\s*$')
 
 
 def _read_text(path: Path) -> str:
@@ -88,6 +90,18 @@ def extract_source_defines() -> dict[str, str]:
                 continue
             value = match.group("value").split("//", 1)[0].strip()
             defines.setdefault(match.group("name"), value)
+    # Active build-flag -D NAME=VALUE entries in platformio.ini are also a
+    # legitimate source of compile-time constants (FIRMWARE_VERSION lives
+    # there, by design). Commented-out lines (starting with ; or #) are skipped.
+    for raw_line in _read_text(PLATFORMIO_INI).splitlines():
+        stripped = raw_line.lstrip()
+        if stripped.startswith(';') or stripped.startswith('#'):
+            continue
+        match = BUILD_FLAG_RE.match(raw_line)
+        if not match:
+            continue
+        value = match.group("value").replace('\\"', '"')
+        defines.setdefault(match.group("name"), value)
     return defines
 
 
@@ -115,6 +129,39 @@ def extract_documented_constants() -> dict[str, str]:
     return constants
 
 
+def extract_source_nvs_keys() -> set[str]:
+    keys: set[str] = set()
+    for path in NVS_SOURCE_FILES:
+        for raw_line in _read_text(path).splitlines():
+            for match in NVS_CALL_RE.finditer(raw_line):
+                keys.add(match.group("key"))
+    return keys - NVS_KEYS_OUTSIDE_TABLE
+
+
+def extract_documented_nvs_keys() -> set[str]:
+    """Pull NVS keys out of the Tier 3 table in config-reference.md."""
+    keys: set[str] = set()
+    in_tier_three = False
+    for raw_line in _read_text(CONFIG_DOC).splitlines():
+        line = raw_line.strip()
+        if line == "## Tier 3: Per-Device NVS":
+            in_tier_three = True
+            continue
+        # Stop at the next top-level section OR at the start of the
+        # sauna_auth sub-section, which lists its keys as prose, not a table.
+        if in_tier_three and (line.startswith("## ") or line.startswith("### Namespace")):
+            break
+        if not in_tier_three or not line.startswith("|"):
+            continue
+        columns = [col.strip() for col in line.strip("|").split("|")]
+        if not columns:
+            continue
+        match = DOC_NVS_KEY_RE.match(columns[0])
+        if match:
+            keys.add(match.group("key"))
+    return keys
+
+
 def run_checks() -> list[str]:
     errors: list[str] = []
 
@@ -134,19 +181,35 @@ def run_checks() -> list[str]:
     source_defines = extract_source_defines()
     documented_constants = extract_documented_constants()
 
-    for name in CONSTANTS_TO_VERIFY:
+    # Every constant the docs claim is checked against the source. Adding a
+    # row to the Tier 1 table without a matching #define (or vice versa) is
+    # caught automatically — no whitelist to maintain.
+    for name, documented_value in sorted(documented_constants.items()):
         source_value = source_defines.get(name)
         if source_value is None:
             errors.append(f"Missing source definition for {name}")
-            continue
-        documented_value = documented_constants.get(name)
-        if documented_value is None:
-            errors.append(f"Missing {name} row in docs/config-reference.md")
             continue
         if documented_value != source_value:
             errors.append(
                 f"Value mismatch for {name}: docs={documented_value} source={source_value}"
             )
+
+    source_nvs_keys = extract_source_nvs_keys()
+    documented_nvs_keys = extract_documented_nvs_keys()
+
+    missing_nvs = sorted(source_nvs_keys - documented_nvs_keys)
+    extra_nvs = sorted(documented_nvs_keys - source_nvs_keys)
+
+    if missing_nvs:
+        errors.append(
+            "Undocumented NVS keys in docs/config-reference.md Tier 3: "
+            + ", ".join(missing_nvs)
+        )
+    if extra_nvs:
+        errors.append(
+            "Stale NVS keys in docs/config-reference.md Tier 3 (no longer referenced in source): "
+            + ", ".join(extra_nvs)
+        )
 
     return errors
 

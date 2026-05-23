@@ -24,7 +24,7 @@ Set via `-D` flags in `platformio.ini` under `build_flags`. Values in `src/main.
 | `SETPOINT_MAX_F` | `300.0f` | Maximum valid setpoint (°F) |
 | `DEFAULT_SENSOR_READ_INTERVAL_MS` | `2000UL` | Default sensor read interval (ms) |
 | `DEFAULT_STATIC_IP` | `"192.168.1.200"` | Default device static IP address |
-| `WS_JSON_BUF_SIZE` | `320` | WebSocket broadcast JSON output buffer (bytes) |
+| `WS_JSON_BUF_SIZE` | `384` | WebSocket broadcast JSON output buffer (bytes) |
 | `MQTT_BUF_SIZE` | `512` | MQTT client buffer size (bytes) |
 | `NTP_SERVER_LOCAL` | `"192.168.1.100"` | Primary NTP server (router or local server) |
 | `WIFI_GATEWAY_IP` | `192, 168, 1, 100` | WiFi gateway (IPAddress comma-separated initializer) |
