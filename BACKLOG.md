@@ -67,5 +67,5 @@ Findings from the 2026-05-21 design review of `data/index.html`, `data/config.ht
 - **M10** Self-host `chart.js` + `chartjs-adapter-date-fns` to LittleFS. **Blocked**: requires a static-file route handler in firmware (`src/web.cpp`) — currently only the three named pages are served. Tracked as firmware follow-up.
 - ~~**L4** Chart legend size/contrast.~~ Done (in this commit) — `boxWidth: 16`, padding 14, color `#eee`, font size 13.
 - ~~**L5** Login render-then-redirect flash.~~ Done (in this commit) — `body.checking-auth .box { visibility: hidden }` until `/auth/status` resolves.
-- **L6** Inline `onclick=` migration to `addEventListener` — mechanical low-ROI; defer.
-- **L7** Redundant login-panel-vs-page logic — mostly addressed by C1 unification; revisit if/when the inline panel can be removed entirely.
+- ~~**L6** Inline `onclick=` migration to `addEventListener`.~~ Done — 27 inline handlers replaced with delegated dispatch via `data-motor`/`data-cmd`/`data-pid`/`data-reset` attributes and one-off IDs.
+- ~~**L7** Redundant login-panel-vs-page logic.~~ Done — inline `#login-panel` and `doLogin()` removed; `/` now redirects to `/auth/login` when unauthenticated, leaving a single login UI.

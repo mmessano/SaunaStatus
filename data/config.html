@@ -133,7 +133,7 @@
 </style>
 </head>
 <body>
-  <div id="authBar"><span id="authUser"></span><button onclick="logout()">Logout</button></div>
+  <div id="authBar"><span id="authUser"></span><button id="logoutBtn">Logout</button></div>
 <h1>Sauna Configuration</h1>
 
 <form id="f" novalidate>
@@ -212,6 +212,7 @@
         }).then(function(d) {
           if (d) document.getElementById('authUser').innerText = d.username;
         });
+      document.getElementById('logoutBtn').addEventListener('click', logout);
     })();
 
 (async () => {

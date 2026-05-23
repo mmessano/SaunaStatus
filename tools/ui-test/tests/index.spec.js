@@ -20,11 +20,11 @@ async function seedAuthAsViewer(page) {
 }
 
 test.describe('index.html — unauthenticated', () => {
-  test('shows the in-page login panel when no token', async ({ page }) => {
+  test('redirects to /auth/login when no token (L7)', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#login-panel')).toBeVisible();
-    await expect(page.locator('#login-user')).toBeVisible();
-    await page.screenshot({ path: 'screenshots/index-login-panel.png', fullPage: true });
+    await page.waitForURL('**/auth/login', { timeout: 5_000 });
+    await expect(page).toHaveURL(/\/auth\/login$/);
+    await expect(page.locator('#u')).toBeVisible();
   });
 });
 

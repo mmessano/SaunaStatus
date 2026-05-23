@@ -86,7 +86,7 @@
     <input id="u" type="text" autocomplete="username" autofocus>
     <label for="p">Password</label>
     <input id="p" type="password" autocomplete="current-password">
-    <button onclick="doLogin()">Sign In</button>
+    <button id="signInBtn">Sign In</button>
     <div id="err"></div>
   </div>
   <script>
@@ -133,5 +133,6 @@
     document.getElementById('p').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') doLogin();
     });
+    document.getElementById('signInBtn').addEventListener('click', doLogin);
   </script>
 </body></html>

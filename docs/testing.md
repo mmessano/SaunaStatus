@@ -41,6 +41,7 @@ Notable assertions, mapped to design-review findings (see `BACKLOG.md` UI lane):
 - **H4** Status threshold subtext (e.g. "140–194°F" under "Ready")
 - **H5** `index.html` redirects to `/auth/login` on 401, matching `config.html`
 - **H6** `.grid` resolves to `display: grid` with non-empty `grid-template-columns`
+- **L7** Unauthenticated `/` redirects to `/auth/login` (the inline login panel was removed; there is only one login UI now)
 - **M4** Out-of-range setpoints get a client-side error banner, no server round-trip
 - **M5** Themed confirm modal with type-to-confirm for destructive bucket resets
 - **M6** Setpoint dirty/edited badge appears when user diverges from live value; WS overwrite suppressed while dirty

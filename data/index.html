@@ -208,45 +208,11 @@
     body.authenticated .auth-required { display: block !important; }
     .admin-required { display: none; }
     body.admin .admin-required { display: block !important; }
-    body.authenticated #login-panel { display: none !important; }
 
-    /* ---- Inline login panel (unified with rest of the theme) ---- */
-    #login-panel {
-      position: fixed; inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      z-index: 1000;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .login-box {
-      background: var(--bg-elev);
-      border-radius: var(--radius-lg);
-      padding: 2rem;
-      width: 320px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    }
-    .login-box h2 { color: var(--text-muted); margin: 0 0 1.5rem; text-align: center; }
-    .login-box input {
-      width: 100%;
-      padding: 0.6rem;
-      margin-bottom: 0.75rem;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-strong);
-      background: var(--bg-input);
-      color: var(--text);
-    }
-    .login-box button {
-      width: 100%;
-      padding: 0.75rem;
-      background: var(--accent);
-      border: none;
-      border-radius: var(--radius-sm);
-      color: #fff;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .login-box button:hover { filter: brightness(1.08); }
-    .login-box button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-    #login-error { color: var(--err); font-size: 0.85rem; margin: 0.75rem 0 0; }
+    /* L7 — Hide the dashboard chrome until we've confirmed an authenticated
+       session. Without this we'd briefly render the empty dashboard before
+       the /auth/status redirect fires. */
+    body.checking-auth { visibility: hidden; }
 
     /* ---- Motor card subsections ---- */
     .motor-row       { display: flex; gap: 6px; justify-content: center; margin-top: 4px; }
@@ -330,20 +296,8 @@
     .add-user-row .btn { margin-top: 8px; }
     #userStatus { width: 100%; margin-top: 8px; font-size: 0.85em; color: var(--text-dim); min-height: 1.2em; }
   </style>
-</head><body>
-  <!-- Login panel — shown when unauthenticated -->
-  <div id="login-panel">
-    <div class="login-box">
-      <h2>Sauna Status</h2>
-      <input id="login-user" type="text" placeholder="Username" autocomplete="username">
-      <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password"
-             onkeydown="if(event.key==='Enter') doLogin()">
-      <button onclick="doLogin()">Sign In</button>
-      <p id="login-error" style="display:none;"></p>
-    </div>
-  </div>
-
-  <div id="authBar"><span id="authUser"></span><button onclick="logout()">Logout</button></div>
+</head><body class="checking-auth">
+  <div id="authBar"><span id="authUser"></span><button id="logoutBtn">Logout</button></div>
   <h1>Sauna Status</h1>
   <div id="envBanner">
     <div class="banner-item">
@@ -375,7 +329,7 @@
     <div style="margin-top:6px;text-align:center;">
       <span id="trendStatus" style="font-size:0.8em;color:var(--text-dim);"></span>
       <span id="refreshCountdown" style="font-size:0.75em;color:var(--text-dim);margin-left:8px;"></span>
-      <button class="btn btn-md" style="margin-left:12px;" onclick="loadHistory()">Refresh</button>
+      <button id="refreshBtn" class="btn btn-md" style="margin-left:12px;">Refresh</button>
     </div>
   </div>
   <div class="grid">
@@ -428,27 +382,27 @@
         <div class="reading" id="ofs">--</div>
         <div class="unit" id="ofd">--</div>
         <div class="motor-row-pad">
-          <button class="btn btn-sm" onclick="motorCmd('outflow','ccw')">← CCW</button>
-          <button class="btn btn-sm" onclick="motorCmd('outflow','cw')">CW →</button>
+          <button class="btn btn-sm" data-motor="outflow" data-cmd="ccw">← CCW</button>
+          <button class="btn btn-sm" data-motor="outflow" data-cmd="cw">CW →</button>
         </div>
         <div class="unit motor-section-label">CALIBRATE — marks current position</div>
         <div class="motor-row">
-          <button class="btn btn-sm btn-warn" onclick="motorCmd('outflow','zero')"
+          <button class="btn btn-sm btn-warn" data-motor="outflow" data-cmd="zero"
                   title="Mark current physical position as closed (step 0)">Mark Closed</button>
-          <button class="btn btn-sm btn-warn" onclick="motorCmd('outflow','setopen')"
+          <button class="btn btn-sm btn-warn" data-motor="outflow" data-cmd="setopen"
                   title="Mark current physical position as fully open">Mark Open</button>
         </div>
         <div class="unit motor-section-label">MOVE TO POSITION</div>
         <div class="motor-row-tight">
-          <button class="btn btn-xs btn-neutral" onclick="motorCmd('outflow','close')"
+          <button class="btn btn-xs btn-neutral" data-motor="outflow" data-cmd="close"
                   title="Drive motor to closed (step 0)">Close</button>
-          <button class="btn btn-xs" onclick="motorCmd('outflow','third')">⅓</button>
-          <button class="btn btn-xs" onclick="motorCmd('outflow','twothird')">⅔</button>
-          <button class="btn btn-xs" onclick="motorCmd('outflow','open')"
+          <button class="btn btn-xs" data-motor="outflow" data-cmd="third">⅓</button>
+          <button class="btn btn-xs" data-motor="outflow" data-cmd="twothird">⅔</button>
+          <button class="btn btn-xs" data-motor="outflow" data-cmd="open"
                   title="Drive motor to calibrated open position">Open</button>
         </div>
         <div class="motor-row">
-          <button class="btn btn-sm btn-stop" onclick="motorCmd('outflow','stop')">Stop</button>
+          <button class="btn btn-sm btn-stop" data-motor="outflow" data-cmd="stop">Stop</button>
         </div>
         <div style="margin-top:7px;font-size:0.78em;color:var(--text-muted);">
           Steps <input id="oSteps" class="steps-input" type="number" value="64" min="1" max="4096">
@@ -461,27 +415,27 @@
         <div class="reading" id="ifs">--</div>
         <div class="unit" id="ifd">--</div>
         <div class="motor-row-pad">
-          <button class="btn btn-sm" onclick="motorCmd('inflow','ccw')">← CCW</button>
-          <button class="btn btn-sm" onclick="motorCmd('inflow','cw')">CW →</button>
+          <button class="btn btn-sm" data-motor="inflow" data-cmd="ccw">← CCW</button>
+          <button class="btn btn-sm" data-motor="inflow" data-cmd="cw">CW →</button>
         </div>
         <div class="unit motor-section-label">CALIBRATE — marks current position</div>
         <div class="motor-row">
-          <button class="btn btn-sm btn-warn" onclick="motorCmd('inflow','zero')"
+          <button class="btn btn-sm btn-warn" data-motor="inflow" data-cmd="zero"
                   title="Mark current physical position as closed (step 0)">Mark Closed</button>
-          <button class="btn btn-sm btn-warn" onclick="motorCmd('inflow','setopen')"
+          <button class="btn btn-sm btn-warn" data-motor="inflow" data-cmd="setopen"
                   title="Mark current physical position as fully open">Mark Open</button>
         </div>
         <div class="unit motor-section-label">MOVE TO POSITION</div>
         <div class="motor-row-tight">
-          <button class="btn btn-xs btn-neutral" onclick="motorCmd('inflow','close')"
+          <button class="btn btn-xs btn-neutral" data-motor="inflow" data-cmd="close"
                   title="Drive motor to closed (step 0)">Close</button>
-          <button class="btn btn-xs" onclick="motorCmd('inflow','third')">⅓</button>
-          <button class="btn btn-xs" onclick="motorCmd('inflow','twothird')">⅔</button>
-          <button class="btn btn-xs" onclick="motorCmd('inflow','open')"
+          <button class="btn btn-xs" data-motor="inflow" data-cmd="third">⅓</button>
+          <button class="btn btn-xs" data-motor="inflow" data-cmd="twothird">⅔</button>
+          <button class="btn btn-xs" data-motor="inflow" data-cmd="open"
                   title="Drive motor to calibrated open position">Open</button>
         </div>
         <div class="motor-row">
-          <button class="btn btn-sm btn-stop" onclick="motorCmd('inflow','stop')">Stop</button>
+          <button class="btn btn-sm btn-stop" data-motor="inflow" data-cmd="stop">Stop</button>
         </div>
         <div style="margin-top:7px;font-size:0.78em;color:var(--text-muted);">
           Steps <input id="iSteps" class="steps-input" type="number" value="64" min="1" max="4096">
@@ -508,16 +462,16 @@
             <div class="unit">Ceiling °F <span class="dirty-badge" id="cspDirty" hidden>edited</span></div>
             <input id="cspInput" class="sp-input" type="number" value="0">
           </div>
-          <button id="cPidBtn" class="btn btn-md btn-off" onclick="togglePid('ceiling')">OFF</button>
+          <button id="cPidBtn" class="btn btn-md btn-off" data-pid="ceiling">OFF</button>
         </div>
         <div class="sp-row" style="margin-bottom:14px;">
           <div>
             <div class="unit">Bench °F <span class="dirty-badge" id="bspDirty" hidden>edited</span></div>
             <input id="bspInput" class="sp-input" type="number" value="0">
           </div>
-          <button id="bPidBtn" class="btn btn-md btn-off" onclick="togglePid('bench')">OFF</button>
+          <button id="bPidBtn" class="btn btn-md btn-off" data-pid="bench">OFF</button>
         </div>
-        <button class="btn btn-md" onclick="applySetpoints()">Apply</button>
+        <button id="applyBtn" class="btn btn-md">Apply</button>
         <div id="spStatus" style="margin-top:8px;font-size:0.8em;color:var(--text-dim);min-height:1em;"></div>
       </div>
     </div>
@@ -540,13 +494,13 @@
     <span id="connStatus">Connecting…</span>
   </div>
   <div class="admin-required">
-    <button class="btn" onclick="logNow()">Log Now</button>
+    <button id="logBtn" class="btn">Log Now</button>
     <div id="logStatus"></div>
   </div>
   <div class="admin-required" style="margin-top:16px;">
     <div class="btn-row">
-      <button class="btn btn-warn" onclick="resetBucket('status','sauna_status')">Reset sauna_status</button>
-      <button class="btn btn-warn" onclick="resetBucket('control','sauna_control')">Reset sauna_control</button>
+      <button class="btn btn-warn" data-reset="status" data-bucket="sauna_status">Reset sauna_status</button>
+      <button class="btn btn-warn" data-reset="control" data-bucket="sauna_control">Reset sauna_control</button>
     </div>
     <div id="resetStatus"></div>
   </div>
@@ -581,64 +535,33 @@
       if (ws) { ws.close(); ws = null; }
     }
 
-    async function doLogin() {
-      var user = document.getElementById('login-user').value.trim();
-      var pass = document.getElementById('login-pass').value;
-      var err  = document.getElementById('login-error');
-      err.style.display = 'none';
-      try {
-        var r = await fetch('/auth/login', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({username: user, password: pass})
-        });
-        if (!r.ok) {
-          // M9 — distinguish 429 lockout from 401 bad creds
-          err.textContent = r.status === 429
-            ? 'Too many attempts. Try again in a few minutes.'
-            : 'Invalid username or password.';
-          err.style.display = 'block';
-          return;
-        }
-        var d = await r.json();
-        localStorage.setItem('token', d.token);
-        localStorage.setItem('username', d.username);
-        setRole(d.role);
-        document.getElementById('authUser').innerText = d.username;
-        document.body.classList.add('authenticated');
-        connect();
-        if (d.role === 'admin') loadUsers();
-      } catch(e) {
-        err.textContent = 'Connection error. Try again.';
-        err.style.display = 'block';
-      }
-    }
-
     function logout() {
       authFetch('/auth/logout', { method: 'POST' }).finally(function() {
         clearAuthState();
+        window.location.href = '/auth/login';
       });
     }
 
+    // L7 — the dashboard no longer has an inline login form; if there's no
+    // valid session, send the user to the dedicated /auth/login page.
     document.addEventListener('DOMContentLoaded', function() {
-      loadHistory(); // always load chart — /history is unauthenticated
       var token = localStorage.getItem('token');
-      if (token) {
-        fetch('/auth/status', {headers: {'Authorization': 'Bearer ' + token}})
-          .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
-          .then(function(d) {
-            document.getElementById('authUser').innerText = d.username || '';
-            document.body.classList.add('authenticated');
-            setRole(d.role);
-            connect();
-            if (d.role === 'admin') loadUsers();
-          })
-          .catch(function() {
-            clearAuthState();
-            // login panel shown via CSS (body not .authenticated)
-          });
-      }
-      // else: login panel shown via CSS
+      if (!token) { window.location.href = '/auth/login'; return; }
+      fetch('/auth/status', {headers: {'Authorization': 'Bearer ' + token}})
+        .then(function(r) {
+          if (!r.ok) { window.location.href = '/auth/login'; throw new Error('redirect'); }
+          return r.json();
+        })
+        .then(function(d) {
+          document.getElementById('authUser').innerText = d.username || '';
+          document.body.classList.add('authenticated');
+          document.body.classList.remove('checking-auth');
+          setRole(d.role);
+          loadHistory();
+          connect();
+          if (d.role === 'admin') loadUsers();
+        })
+        .catch(function() { /* redirected */ });
     });
 
     var ws;
@@ -924,7 +847,34 @@
           markSpDirty(id, !equal);
         });
       });
+      wireEvents();
     });
+
+    // L6 — all interactive controls bound via addEventListener instead of
+    // inline HTML onclick attributes. Motor buttons + reset buttons + PID
+    // toggles use data-* attributes with a delegated body-level dispatcher
+    // so the per-button JSX stays minimal.
+    function wireEvents() {
+      // Motor buttons — both outflow and inflow share one dispatcher.
+      document.body.addEventListener('click', function(e) {
+        var motor = e.target.closest('button[data-motor][data-cmd]');
+        if (motor) { motorCmd(motor.dataset.motor, motor.dataset.cmd); return; }
+        var pid = e.target.closest('button[data-pid]');
+        if (pid) { togglePid(pid.dataset.pid); return; }
+        var reset = e.target.closest('button[data-reset][data-bucket]');
+        if (reset) { resetBucket(reset.dataset.reset, reset.dataset.bucket); return; }
+      });
+      // Explicit one-off button bindings.
+      var bind = function(id, fn) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('click', fn);
+      };
+      bind('logoutBtn', logout);
+      bind('refreshBtn', loadHistory);
+      bind('applyBtn', applySetpoints);
+      bind('logBtn', logNow);
+      bind('addUserBtn', addUser);
+    }
     function togglePid(which) {
       var id = which === 'ceiling' ? 'cPidBtn' : 'bPidBtn';
       var isOn = document.getElementById(id).innerText === 'ON';
@@ -1116,7 +1066,7 @@
             <option value="viewer">viewer</option>
             <option value="admin">admin</option>
           </select>
-          <button class="btn btn-sm" onclick="addUser()">Create</button>
+          <button id="addUserBtn" class="btn btn-sm">Create</button>
           <div id="userStatus"></div>
         </div>
       </details>
