@@ -76,6 +76,31 @@ test.describe('index.html — admin', () => {
     await expect(page.locator('#statusRange')).toHaveText('140–194°F');
   });
 
+  test('self-hosted chart.js + adapter load from local paths (M10)', async ({ page }) => {
+    const requests = [];
+    page.on('request', (req) => requests.push(req.url()));
+    await page.goto('/');
+    await expect(page.locator('body.authenticated')).toBeVisible();
+    // Either chart bundle must come from our origin, not jsdelivr.
+    const externalChartReqs = requests.filter((u) => /cdn\.jsdelivr\.net|unpkg\.com/.test(u));
+    expect(externalChartReqs).toEqual([]);
+    const localChart = requests.find((u) => u.endsWith('/chart.umd.min.js'));
+    const localAdapter = requests.find((u) => u.endsWith('/chart-adapter.min.js'));
+    expect(localChart).toBeTruthy();
+    expect(localAdapter).toBeTruthy();
+    // Both files must be served with a successful response and be > 10 KB.
+    for (const url of [localChart, localAdapter]) {
+      const resp = await page.request.get(url);
+      expect(resp.status()).toBe(200);
+      expect(resp.headers()['content-type']).toMatch(/javascript/);
+      const body = await resp.body();
+      expect(body.length).toBeGreaterThan(10_000);
+    }
+    // And the chart actually drew something (Chart instance assigned, canvas non-empty).
+    const canvasW = await page.locator('#trendChart').evaluate((el) => el.width);
+    expect(canvasW).toBeGreaterThan(0);
+  });
+
   test('main grid uses CSS Grid layout (H6)', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('body.authenticated')).toBeVisible();

@@ -659,6 +659,8 @@ void setup()
   server.on("/users",       HTTP_POST, handleUsersCreate);
   server.on("/users",       HTTP_DELETE, handleUsersDelete);
   server.on("/users",       HTTP_PUT,  handleUsersChangePassword);
+  server.on("/chart.umd.min.js",                       HTTP_GET, handleChartJs);
+  server.on("/chart-adapter.min.js", HTTP_GET, handleChartAdapterJs);
   const char *authHdrs[] = {"Authorization"};
   server.collectHeaders(authHdrs, 1);
   server.begin();

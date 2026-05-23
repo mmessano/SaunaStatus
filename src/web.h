@@ -79,4 +79,7 @@ void handleUsersGet();
 void handleUsersCreate();
 void handleUsersDelete();
 void handleUsersChangePassword();
+// Self-hosted vendor JS bundles served from LittleFS (M10)
+void handleChartJs();
+void handleChartAdapterJs();
 #endif // ARDUINO

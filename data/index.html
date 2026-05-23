@@ -3,8 +3,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sauna — Status</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <!-- Self-hosted vendor JS — works on LAN-only deployments (M10).
+       Pinned: chart.js 4.4.7, chartjs-adapter-date-fns 3.0.0. -->
+  <script src="/chart.umd.min.js"></script>
+  <script src="/chart-adapter.min.js"></script>
   <style>
     :root {
       /* Surfaces */

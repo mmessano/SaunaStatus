@@ -71,6 +71,23 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ---- Self-hosted vendor JS (M10) — mirrors the firmware routes ----
+  const jsRoutes = {
+    'GET /chart.umd.min.js': 'chart.umd.min.js',
+    'GET /chart-adapter.min.js': 'chart-adapter.min.js',
+  };
+  if (jsRoutes[route]) {
+    const f = path.join(DATA_DIR, jsRoutes[route]);
+    try {
+      const body = fs.readFileSync(f);
+      return send(res, 200, 'application/javascript', body, {
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      });
+    } catch {
+      return send(res, 404, 'text/plain', `${jsRoutes[route]} not found`);
+    }
+  }
+
   // ---- Auth ----
   if (route === 'POST /auth/login') {
     const body = await readBody(req);

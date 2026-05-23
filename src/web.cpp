@@ -75,6 +75,21 @@ void handleRoot()
 void handleDeleteStatus() { if (!requireAdmin()) return; handleDeleteMeasurement("sauna_status"); }
 void handleDeleteControl() { if (!requireAdmin()) return; handleDeleteMeasurement("sauna_control"); }
 
+// Streams a static JS bundle from LittleFS. Unauthenticated — these are
+// public vendor assets just like the HTML pages. Caches forever because the
+// filenames carry the exact version we shipped (M10 — self-hosted Chart.js).
+static void streamVendorJs(const char *path)
+{
+  if (!ensureLittleFsMounted()) return;
+  File f = LittleFS.open(path, "r");
+  if (!f) { server.send(404, "text/plain", "not found"); return; }
+  server.sendHeader("Cache-Control", "public, max-age=31536000, immutable");
+  server.streamFile(f, "application/javascript");
+  f.close();
+}
+void handleChartJs()        { streamVendorJs("/chart.umd.min.js"); }
+void handleChartAdapterJs() { streamVendorJs("/chart-adapter.min.js"); }
+
 void handleMotorCmd()
 {
   if (!requireAdmin()) return;
