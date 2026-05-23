@@ -50,7 +50,10 @@
       font-family: var(--font-stack);
       background: var(--bg);
       color: var(--text);
-      margin: 0;
+      /* Center the dashboard column on wide monitors. Below 1100 px the
+         container fills the viewport minus the 20 px padding. */
+      max-width: 1100px;
+      margin: 0 auto;
       padding: 20px;
       text-align: center;
     }
