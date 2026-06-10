@@ -508,7 +508,7 @@
     // ── Auth ───────────────────────────────────────────────────────────────
     function authFetch(url, options) {
       options = options || {};
-      var tok = localStorage.getItem('token');
+      var tok = sessionStorage.getItem('sauna_token');
       options.headers = Object.assign({}, options.headers,
                           { 'Authorization': 'Bearer ' + tok });
       return fetch(url, options).then(function(r) {
@@ -521,14 +521,11 @@
     }
 
     function setRole(role) {
-      localStorage.setItem('role', role || '');
       document.body.classList.toggle('admin', role === 'admin');
     }
 
     function clearAuthState() {
-      localStorage.removeItem('token');
-      localStorage.removeItem('username');
-      localStorage.removeItem('role');
+      sessionStorage.removeItem('sauna_token');
       document.body.classList.remove('authenticated');
       document.body.classList.remove('admin');
       document.getElementById('authUser').innerText = '';
@@ -545,7 +542,7 @@
     // L7 — the dashboard no longer has an inline login form; if there's no
     // valid session, send the user to the dedicated /auth/login page.
     document.addEventListener('DOMContentLoaded', function() {
-      var token = localStorage.getItem('token');
+      var token = sessionStorage.getItem('sauna_token');
       if (!token) { window.location.href = '/auth/login'; return; }
       fetch('/auth/status', {headers: {'Authorization': 'Bearer ' + token}})
         .then(function(r) {
@@ -581,7 +578,7 @@
       ws = new WebSocket(wsProto + location.hostname + ':81/');
       ws.onopen = function() {
         // Send auth token as first message
-        var token = localStorage.getItem('token');
+        var token = sessionStorage.getItem('sauna_token');
         if (token) {
           ws.send(JSON.stringify({token: token}));
         }

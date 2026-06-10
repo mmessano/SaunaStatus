@@ -28,7 +28,7 @@ test.describe('login.html', () => {
     await page.screenshot({ path: 'screenshots/login-server-rejected.png', fullPage: true });
   });
 
-  test('admin login redirects to /', async ({ page }) => {
+  test('admin login redirects to / and dashboard mounts', async ({ page }) => {
     await page.goto('/auth/login');
     await page.locator('#u').fill('admin');
     await page.locator('#p').fill('changeme1');
@@ -36,6 +36,10 @@ test.describe('login.html', () => {
       page.waitForURL('**/', { timeout: 5_000 }),
       page.getByRole('button', { name: /Sign In/i }).click(),
     ]);
+    // The token store must be the one index.html reads, otherwise the
+    // dashboard bounces straight back to /auth/login (regression).
+    await expect(page.locator('body.authenticated')).toBeVisible({ timeout: 5_000 });
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('429 rate-limit surfaces distinct message (M9)', async ({ page }) => {

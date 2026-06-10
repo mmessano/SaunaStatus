@@ -5,18 +5,14 @@ const ADMIN_TOKEN = 'a'.repeat(64);
 const VIEWER_TOKEN = 'b'.repeat(64);
 
 async function seedAuthAsAdmin(page) {
-  await page.addInitScript(({ token, username, role }) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('username', username);
-    localStorage.setItem('role', role);
-  }, { token: ADMIN_TOKEN, username: 'admin', role: 'admin' });
+  await page.addInitScript(({ token }) => {
+    sessionStorage.setItem('sauna_token', token);
+  }, { token: ADMIN_TOKEN });
 }
 async function seedAuthAsViewer(page) {
-  await page.addInitScript(({ token, username, role }) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('username', username);
-    localStorage.setItem('role', role);
-  }, { token: VIEWER_TOKEN, username: 'viewer1', role: 'viewer' });
+  await page.addInitScript(({ token }) => {
+    sessionStorage.setItem('sauna_token', token);
+  }, { token: VIEWER_TOKEN });
 }
 
 test.describe('index.html — unauthenticated', () => {
