@@ -94,4 +94,4 @@ Items found in the codebase not yet covered in `docs/`. Verify and expand as nee
 - [x] `AUTH_RATE_LIMIT_LOCKOUT_MS 300000UL`
 - [x] `AUTH_RATE_LIMIT_SLOTS 8`
 - [x] `OTA_ALLOWED_HOSTS ""` — empty disables OTA; verify configured allowlist hosts succeed
-- [x] `OVERHEAT_CLEAR_HYSTERESIS_C 10.0f` — clear band below `TEMP_LIMIT_C`; `checkOverheat()` in `sensors.cpp` has no equivalent
+- [x] `OVERHEAT_CLEAR_HYSTERESIS_C 10.0f` — clear band below `TEMP_LIMIT_C`; `checkOverheat()` delegates to `tickOverheat()`

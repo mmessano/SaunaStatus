@@ -49,7 +49,7 @@ Set via `-D` flags in `platformio.ini` under `build_flags`. Values in `src/main.
 | `AUTH_RATE_LIMIT_SLOTS` | `8` | Distinct IP slots tracked by the in-memory login rate limiter |
 | `OTA_ALLOWED_HOSTS` | `""` | Comma-separated OTA hostname allowlist; empty string disables OTA |
 | `OTA_MAX_BOOT_FAILURES` | `3` | Consecutive boot failures before rollback |
-| `OVERHEAT_CLEAR_HYSTERESIS_C` | `10.0f` | Clear band used by portable `tickOverheat()` below `TEMP_LIMIT_C`; note `checkOverheat()` in `sensors.cpp` does not apply this hysteresis |
+| `OVERHEAT_CLEAR_HYSTERESIS_C` | `10.0f` | Clear band below `TEMP_LIMIT_C`; `checkOverheat()` delegates to `tickOverheat()`, so the alarm clears only when both temps are valid and below `TEMP_LIMIT_C - OVERHEAT_CLEAR_HYSTERESIS_C` |
 | `FIRMWARE_VERSION` | `"2.0.0"` | Firmware version string for OTA comparison |
 
 Commented-out override examples are available in `platformio.ini` under `build_flags`.

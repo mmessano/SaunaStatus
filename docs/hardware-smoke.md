@@ -119,9 +119,10 @@ Use this after:
 4. Return temperatures to safe values and confirm:
    - alarm clears
    - normal control resumes
-5. Pay attention to current firmware behavior:
-   - `tickOverheat()` test logic includes a clear hysteresis band
-   - `checkOverheat()` hardware path currently clears as soon as temps fall below threshold
+5. Confirm hysteresis on hardware:
+   - alarm stays active while temps sit between 110 °C and 120 °C (230–248 °F)
+   - alarm clears only after both ceiling and bench drop below 110 °C
+   - unplugging a DHT21 while alarmed keeps the alarm active
 
 ## 9. Result Recording
 

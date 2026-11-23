@@ -39,7 +39,7 @@ include/
 
 **`src/sauna_logic.h`** — Header-only pure-C++ (no Arduino deps). `c2f`/`f2c`/`fmtVal`, `isSensorStale`, `SaunaConfig`+`ConfigLayer`+`mergeConfigLayer`, `buildJsonFull()` (23-field WebSocket JSON), `OverheatGuard`+`tickOverheat()`, `buildConfigJson()`.
 
-**`src/sensors.h/.cpp`** — `stoveReading()` inline in header (natively testable); returns `stove_temp` or ceiling/bench average fallback. `readSensors()` reads all sensors, applies `||` rule for `last_ok_ms`. `checkOverheat()` rising-edge state machine; motor drive is inside this function. Note: `checkOverheat()` has no hysteresis — `tickOverheat()` in `sauna_logic.h` uses `OVERHEAT_CLEAR_HYSTERESIS_C = 10.0f`.
+**`src/sensors.h/.cpp`** — `stoveReading()` inline in header (natively testable); returns `stove_temp` or ceiling/bench average fallback. `readSensors()` reads all sensors, applies `||` rule for `last_ok_ms`. `checkOverheat()` wraps `tickOverheat()` (shared hysteresis) and drives vents open on the rising edge.
 
 **`src/web.h`** — `buildJson()` inline in header (natively testable). Public declarations for all `handle*()` HTTP handlers and `webSocketEvent()`.
 
@@ -72,9 +72,9 @@ Output 0–255 is linearly mapped to 0–`max_steps` for the corresponding motor
 
 ### Overheat Protection
 
-Threshold: `TEMP_LIMIT_C = 120.0°C` (248°F). Trigger: `ceiling_temp >= TEMP_LIMIT_C` OR `bench_temp >= TEMP_LIMIT_C` (NaN ignored). When triggered: both vents driven fully open, PID suppressed. Clears when both temps drop below threshold.
+Threshold: `TEMP_LIMIT_C = 120.0°C` (248°F). Trigger: `ceiling_temp >= TEMP_LIMIT_C` OR `bench_temp >= TEMP_LIMIT_C` (NaN ignored). When triggered: both vents driven fully open (rising edge only), PID suppressed. Clears only when both temps are valid (non-NaN) and below `TEMP_LIMIT_C - OVERHEAT_CLEAR_HYSTERESIS_C` (default 110°C / 230°F); a NaN sensor holds the alarm.
 
-The portable `tickOverheat()` in `sauna_logic.h` adds a `OVERHEAT_CLEAR_HYSTERESIS_C = 10.0f` band — it clears at `threshold - 10°C`. `checkOverheat()` in `sensors.cpp` does not have this hysteresis. Document the difference if migrating.
+`checkOverheat()` in `sensors.cpp` delegates the state decision to the portable, natively tested `tickOverheat()` in `sauna_logic.h`, so both paths share identical hysteresis semantics.
 
 ### Stale Sensor Detection
 

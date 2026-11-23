@@ -14,15 +14,21 @@
 #define TEMP_LIMIT_C 120.0f
 #endif
 
-// Opens both vents fully when air temps exceed TEMP_LIMIT_C; clears when safe.
+// Opens both vents fully when air temps reach TEMP_LIMIT_C.
+// State decision is delegated to tickOverheat() (sauna_logic.h, natively tested):
+// clears only when BOTH temps are valid and below
+// TEMP_LIMIT_C - OVERHEAT_CLEAR_HYSTERESIS_C; a NaN sensor holds the alarm.
+// Vents are driven only on the rising edge.
 // Returns true while alarm is active — callers must skip PID computation.
 bool checkOverheat()
 {
-  bool hot = (!isnan(ceiling_temp) && ceiling_temp >= TEMP_LIMIT_C) ||
-             (!isnan(bench_temp) && bench_temp >= TEMP_LIMIT_C);
-  if (hot && !overheat_alarm)
+  const bool was_active = overheat_alarm;
+  OverheatGuard guard;
+  guard.triggered = was_active;
+  overheat_alarm = tickOverheat(guard, ceiling_temp, bench_temp, TEMP_LIMIT_C);
+
+  if (overheat_alarm && !was_active)
   {
-    overheat_alarm = true;
     Serial.printf("!!! OVERHEAT: ceiling=%.1f bench=%.1f (limit %.0f °C) — opening vents\n",
                   ceiling_temp, bench_temp, (float)TEMP_LIMIT_C);
     // Drive both vents to fully open
@@ -41,10 +47,10 @@ bool checkOverheat()
     }
     inflow_target = inflow_max_steps;
   }
-  else if (!hot && overheat_alarm)
+  else if (!overheat_alarm && was_active)
   {
-    overheat_alarm = false;
-    Serial.println("Overheat cleared — resuming normal control.");
+    Serial.printf("Overheat cleared (both < %.0f °C) — resuming normal control.\n",
+                  (float)(TEMP_LIMIT_C - OVERHEAT_CLEAR_HYSTERESIS_C));
   }
   return overheat_alarm;
 }
